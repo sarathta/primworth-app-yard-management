@@ -1,0 +1,554 @@
+/* slab-yard.css — the Slab Yard (mSYMS) control-room skin.
+ *
+ * mSYMS was built on Tailwind with a dark control-room palette. Tailwind is deliberately
+ * NOT added to the platform build, so the look is reproduced here as a scoped skin: every
+ * rule sits under `.slab-yard`, and the palette lives in custom properties on that scope so
+ * it cannot leak into the rest of the platform.
+ *
+ * Colours are the mSYMS tailwind.config.js values verbatim, so a yard operator moving from
+ * the standalone app to the platform sees the same thing.
+ *
+ * Because the platform's own primitives (SystemField, buttons, alerts, tables) are styled
+ * for a light surface, they are re-skinned below *within this scope only*. Anything outside
+ * `.slab-yard` — the shell, sidebar, header — is untouched.
+ */
+
+.slab-yard {
+  /* mSYMS palette (tailwind.config.js) */
+  --syms-bg: #0B0C10;
+  --syms-surface: #1F2833;
+  --syms-surface-raised: #263340;
+  --syms-text: #C5C6C7;
+  --syms-heading: #FFFFFF;
+  --syms-muted: #93969A;
+  --syms-accent: #098446;
+  --syms-accent-hover: #45A29E;
+  --syms-success: #2E8B57;
+  --syms-danger: #DC143C;
+  --syms-warning: #FF8C00;
+  --syms-border: #333A44;
+
+  /* Zone types keep their own signal colours, mapped onto the palette. */
+  --syms-storage: var(--syms-accent-hover);
+  --syms-scarfing: var(--syms-warning);
+  --syms-dispatch: var(--syms-success);
+  --syms-shuffling: #7C6BF2;
+
+  background: var(--syms-bg);
+  color: var(--syms-text);
+
+  /* .app-content applies `padding: var(--space-lg)` around the routed page. Cancelling it
+     with an equal negative margin and re-applying it here lets the control room reach the
+     edges of the pane instead of floating in a white frame. The min-height then works out
+     to exactly the parent's content height, so this adds no scrollbar. */
+  margin: calc(var(--space-lg) * -1);
+  padding: var(--space-lg);
+  min-height: calc(100vh - var(--header-height));
+}
+
+.slab-yard h1,
+.slab-yard h2,
+.slab-yard h3,
+.slab-yard h4 {
+  color: var(--syms-heading);
+}
+
+.slab-yard .page-subtitle,
+.slab-yard .breadcrumb,
+.slab-yard .breadcrumb * {
+  color: var(--syms-muted);
+}
+
+.slab-yard a { color: var(--syms-accent-hover); }
+
+/* ── Platform primitives, re-skinned inside this scope ──────────────────── */
+
+.slab-yard .system-field__label { color: var(--syms-muted); }
+
+.slab-yard .system-field__control {
+  background: var(--syms-bg);
+  border-color: var(--syms-border);
+  color: var(--syms-text);
+}
+
+.slab-yard .system-field__control:focus {
+  border-color: var(--syms-accent);
+  outline-color: var(--syms-accent);
+}
+
+.slab-yard .system-field__control::placeholder { color: var(--syms-muted); }
+
+/* Native select/option popups render with the OS surface, so the option list needs an
+   explicit colour or it renders dark-on-dark on some platforms. */
+.slab-yard .system-field__control--select option {
+  background: var(--syms-surface);
+  color: var(--syms-text);
+}
+
+.slab-yard .system-multiselect-container,
+.slab-yard .multiselect-dropdown-trigger,
+.slab-yard .ss-panel {
+  background: var(--syms-surface);
+  border-color: var(--syms-border);
+  color: var(--syms-text);
+}
+
+.slab-yard .ss-placeholder { color: var(--syms-muted); }
+
+.slab-yard .multiselect-chip {
+  background: var(--syms-accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+.slab-yard .btn--secondary,
+.slab-yard .btn--icon {
+  background: var(--syms-surface-raised);
+  border-color: var(--syms-border);
+  color: var(--syms-text);
+}
+
+.slab-yard .btn--icon:hover { background: var(--syms-surface); }
+
+.slab-yard .btn--primary {
+  background: var(--syms-accent);
+  border-color: var(--syms-accent);
+  color: #fff;
+}
+
+.slab-yard .btn--primary:hover:not(:disabled) {
+  background: var(--syms-accent-hover);
+  border-color: var(--syms-accent-hover);
+}
+
+/* Alerts are tinted rather than solid so a message doesn't dominate the control room. */
+.slab-yard .alert {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--radius-md, 8px);
+}
+
+.slab-yard .alert--error   { background: rgba(220, 20, 60, 0.12);  border-color: var(--syms-danger);  color: #FF8FA3; }
+.slab-yard .alert--success { background: rgba(46, 139, 87, 0.12);  border-color: var(--syms-success); color: #7BD8A4; }
+.slab-yard .alert--info    { background: rgba(69, 162, 158, 0.12); border-color: var(--syms-accent-hover); color: #9FDBD8; }
+
+.slab-yard .data-table { color: var(--syms-text); }
+
+.slab-yard .data-table th {
+  background: var(--syms-surface);
+  color: var(--syms-muted);
+  border-color: var(--syms-border);
+}
+
+.slab-yard .data-table td { border-color: var(--syms-border); }
+.slab-yard .data-table tbody tr:hover { background: var(--syms-surface); }
+
+.slab-yard .system-empty-state,
+.slab-yard .system-empty-state p,
+.slab-yard .system-empty-state li { color: var(--syms-muted); }
+.slab-yard .system-empty-state h3 { color: var(--syms-heading); }
+
+/* ── Zones ──────────────────────────────────────────────────────────────── */
+
+.slab-yard__zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-md, 16px);
+}
+
+.syms-zone-card {
+  border: 1px solid var(--syms-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--syms-surface);
+  padding: var(--space-md, 16px);
+  /* Zone type is signalled by a colour bar so the yard reads at a glance. */
+  border-left: 4px solid var(--syms-muted);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.syms-zone-card:hover { border-color: var(--syms-accent-hover); }
+
+.syms-zone-card--storage   { border-left-color: var(--syms-storage); }
+.syms-zone-card--scarfing  { border-left-color: var(--syms-scarfing); }
+.syms-zone-card--dispatch  { border-left-color: var(--syms-dispatch); }
+.syms-zone-card--shuffling { border-left-color: var(--syms-shuffling); }
+
+.syms-zone-card__name {
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--syms-heading);
+  letter-spacing: 0.02em;
+}
+
+.syms-zone-card__type {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--syms-muted);
+}
+
+.syms-zone-card__stats {
+  display: flex;
+  gap: var(--space-md, 16px);
+  margin-top: var(--space-sm, 8px);
+  font-size: 13px;
+  color: var(--syms-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.syms-zone-card--selected {
+  box-shadow: 0 0 0 2px var(--syms-accent);
+  border-color: var(--syms-accent);
+}
+
+.syms-zone-card--inactive { opacity: 0.5; }
+
+.syms-zone-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: var(--space-sm, 8px);
+}
+
+/* ── Admin ─────────────────────────────────────────────────────────────── */
+
+.syms-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--syms-border);
+}
+
+.syms-tabs__tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--syms-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.syms-tabs__tab:hover { color: var(--syms-text); }
+
+.syms-tabs__tab--active {
+  color: var(--syms-accent-hover);
+  border-bottom-color: var(--syms-accent);
+  font-weight: 600;
+}
+
+.syms-panel {
+  border: 1px solid var(--syms-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--syms-surface);
+  padding: var(--space-md, 16px);
+}
+
+.syms-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md, 16px);
+}
+
+/* The column grid mirrors the physical yard: one cell per stacking position, laid out in
+   the same rows and columns the operator sees on the ground. */
+.syms-grid {
+  display: grid;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.syms-grid__header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--syms-muted);
+  letter-spacing: 0.06em;
+}
+
+.syms-grid__cell {
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--syms-border);
+  border-radius: 6px;
+  background: var(--syms-bg);
+  text-align: center;
+}
+
+/* A column at capacity can't take another slab — worth seeing before planning a move. */
+.syms-grid__cell--full {
+  border-color: var(--syms-warning);
+  background: rgba(255, 140, 0, 0.1);
+}
+
+.syms-grid__input {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--syms-heading);
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.syms-grid__input:focus {
+  outline: 1px solid var(--syms-accent);
+  border-radius: 4px;
+}
+
+.syms-grid__occupancy {
+  font-size: 11px;
+  color: var(--syms-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Dashboard: sector grid ─────────────────────────────────────────────── */
+
+.syms-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 16px);
+  flex-wrap: wrap;
+}
+
+.syms-topbar__title {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.syms-topbar__context {
+  margin: 4px 0 var(--space-md, 16px);
+  color: var(--syms-muted);
+  font-size: 13px;
+}
+
+.syms-chip-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid var(--syms-border);
+  border-radius: 4px;
+  background: var(--syms-surface);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--syms-muted);
+}
+
+.syms-chip-tag .material-symbols-outlined { font-size: 14px; }
+.syms-chip-tag--danger { border-color: var(--syms-danger); color: var(--syms-danger); }
+.syms-chip-tag--live   { border-color: var(--syms-accent); color: var(--syms-accent-hover); }
+
+/* Pulsing dot: the only motion on the page, so "is this live?" is answerable at a glance. */
+.syms-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--syms-accent);
+  animation: syms-pulse 2s ease-in-out infinite;
+}
+
+@keyframes syms-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .syms-dot { animation: none; }
+}
+
+.syms-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+  padding: 5px 10px;
+  border: 1px solid var(--syms-border);
+  border-radius: 6px;
+  background: var(--syms-surface);
+  color: var(--syms-muted);
+}
+
+.syms-search input {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--syms-text);
+  font: inherit;
+  outline: none;
+}
+
+.syms-search__clear {
+  border: none; background: none; color: var(--syms-muted); cursor: pointer;
+  display: flex; padding: 0;
+}
+
+/* ── Utilization ───────────────────────────────────────────────────────── */
+
+.syms-util-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg, 24px);
+  flex-wrap: wrap;
+  padding: var(--space-md, 16px);
+  margin-bottom: var(--space-md, 16px);
+  border: 1px solid var(--syms-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--syms-surface);
+}
+
+.syms-util-bar__label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--syms-muted);
+}
+
+.syms-util-bar__total { margin-left: auto; font-size: 12px; color: var(--syms-muted); }
+
+.syms-util { display: flex; align-items: center; gap: 10px; }
+.syms-util__ring { flex-shrink: 0; }
+.syms-util__track { fill: none; stroke: var(--syms-border); stroke-width: 5; }
+
+.syms-util__value {
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke: var(--syms-accent);
+  transition: stroke-dasharray 0.4s ease;
+}
+
+.syms-util__ring--warning .syms-util__value { stroke: var(--syms-warning); }
+.syms-util__ring--danger  .syms-util__value { stroke: var(--syms-danger); }
+
+.syms-util__pct { fill: var(--syms-heading); font-size: 13px; font-weight: 700; }
+.syms-util__meta { display: flex; flex-direction: column; }
+.syms-util__label { font-size: 13px; font-weight: 600; color: var(--syms-heading); letter-spacing: 0.04em; }
+.syms-util__count { font-size: 11px; color: var(--syms-muted); font-variant-numeric: tabular-nums; }
+
+/* ── Sectors and pits ──────────────────────────────────────────────────── */
+
+.syms-floor { display: grid; gap: var(--space-md, 16px); }
+
+.syms-sector {
+  border: 1px solid var(--syms-border);
+  border-radius: var(--radius-md, 8px);
+  background: var(--syms-surface);
+  padding: var(--space-md, 16px);
+}
+
+/* A zone whose audit failed is outlined, not tinted — it must be findable while scrolling. */
+.syms-sector--compromised { border-color: var(--syms-danger); box-shadow: inset 3px 0 0 var(--syms-danger); }
+
+.syms-sector__head { display: flex; align-items: center; gap: 10px; margin-bottom: var(--space-md, 16px); flex-wrap: wrap; }
+.syms-sector__title { margin: 0; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--syms-heading); }
+.syms-sector__count { margin-left: auto; font-size: 12px; color: var(--syms-muted); font-variant-numeric: tabular-nums; }
+
+.syms-pits { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+
+.syms-pit {
+  flex: 0 0 auto;
+  width: 148px;
+  border: 1px solid var(--syms-border);
+  border-radius: 6px;
+  background: var(--syms-bg);
+  padding: 6px;
+}
+
+.syms-pit__head {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 11px; color: var(--syms-muted); margin-bottom: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.syms-pit__count--full { color: var(--syms-danger); font-weight: 700; }
+
+/* Chips stack from the bottom, so free capacity reads as literal empty headroom. */
+.syms-pit__body { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; min-height: 120px; }
+
+.syms-pit--disabled { opacity: 0.45; }
+
+/* Out of service but still holding slabs — needs to stand out, not fade away. */
+.syms-pit--stranded { border-color: var(--syms-danger); border-style: dashed; }
+
+.syms-pit__body--disabled {
+  align-items: center; justify-content: center; display: flex;
+  font-size: 11px; letter-spacing: 0.1em; color: var(--syms-muted);
+  border: 1px dashed var(--syms-border); border-radius: 4px;
+}
+
+.syms-slot { height: 22px; border-radius: 3px; border: 1px dashed rgba(255, 255, 255, 0.06); }
+
+/* ── Slab chips ────────────────────────────────────────────────────────── */
+
+.syms-slab {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  height: 22px; padding: 0 6px;
+  border: 1px solid var(--syms-success);
+  border-radius: 3px;
+  background: rgba(46, 139, 87, 0.28);
+  color: var(--syms-heading);
+  font: 600 11px/1 inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+
+.syms-slab:hover { transform: translateX(2px); }
+
+.syms-slab--hot      { border-color: var(--syms-warning); }
+.syms-slab--locked   { border-color: var(--syms-warning); background: rgba(255, 140, 0, 0.35); }
+.syms-slab--stale    { border-color: var(--syms-danger);  background: rgba(220, 20, 60, 0.35); }
+.syms-slab--hold     { border-color: var(--syms-danger);  background: rgba(220, 20, 60, 0.5); }
+.syms-slab--selected { box-shadow: 0 0 0 2px var(--syms-accent-hover); }
+
+.syms-slab__icon { font-size: 12px; }
+.syms-slab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Search dims non-matches rather than hiding them, so the stack keeps its shape and you can
+   see where the match sits within the pit. */
+.syms-slab--dim   { opacity: 0.18; }
+.syms-slab--match { box-shadow: 0 0 0 2px var(--syms-accent-hover); }
+
+/* ── Drawers ───────────────────────────────────────────────────────────── */
+
+.syms-drawer {
+  position: fixed; top: var(--header-height); right: 0; bottom: 0;
+  width: min(380px, 92vw);
+  background: var(--syms-surface);
+  border-left: 1px solid var(--syms-border);
+  padding: var(--space-md, 16px);
+  overflow-y: auto;
+  z-index: 40;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+}
+
+.syms-drawer--left { right: auto; left: 0; border-left: none; border-right: 1px solid var(--syms-border); }
+
+.syms-drawer__head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-md, 16px); }
+.syms-drawer__head h3 { margin: 0; }
+.syms-drawer__sub { font-size: 12px; color: var(--syms-muted); }
+.syms-drawer__section { margin: var(--space-md, 16px) 0 8px; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--syms-muted); }
+
+.syms-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 var(--space-md, 16px); }
+.syms-facts dt { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--syms-muted); }
+.syms-facts dd { margin: 2px 0 0; color: var(--syms-heading); font-weight: 600; font-size: 13px; }
+
+.syms-muted { color: var(--syms-muted); font-size: 13px; }
+
+.syms-timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+
+.syms-timeline li {
+  display: grid; gap: 2px;
+  padding-left: 10px;
+  border-left: 2px solid var(--syms-border);
+}
+
+.syms-timeline__type { font-size: 10px; letter-spacing: 0.08em; color: var(--syms-accent-hover); }
+.syms-timeline__route { font-size: 13px; color: var(--syms-text); }
+.syms-timeline__meta { font-size: 11px; color: var(--syms-muted); }

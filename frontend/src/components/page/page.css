@@ -1,0 +1,120 @@
+/* Page pieces for applications — what platform pages repeat by hand, in one place: the breadcrumb row,
+   the filter card grid, table helpers, row actions, dialog sizes and forms, hints, tabs, list panes,
+   the two-table transfer, stat chips, a summary card and a full-screen image viewer. Built on the
+   platform's tokens and classes (index.css, system.css); every class here starts with "pg-". */
+
+/* ── Breadcrumb row: crumbs on the left, context (scope, status lights) on the right ───────────── */
+.pg-context { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+.pg-context__aside { display: flex; align-items: center; gap: var(--space-md); margin-top: 20px; font-size: 12px; color: var(--text-muted); }
+.pg-context__item { display: inline-flex; align-items: center; gap: 4px; }
+.pg-context__item .material-symbols-outlined { font-size: 16px; }
+
+/* ── Filter card: as many fields as a page needs (the platform grid fits three) ───────────────── */
+.pg-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-md); align-items: center; }
+.pg-filter-grid__wide { grid-column: span 2; }
+.pg-filter-grid .btn--stroked { justify-self: start; }
+
+/* ── Tables ─────────────────────────────────────────────────────────────────────────────────── */
+.pg-table { min-width: 0; }
+.pg-table td { vertical-align: middle; }
+.pg-table tr.pg-row--selected > td { background: var(--primary-light); }
+.pg-table tr.pg-row--clickable { cursor: pointer; }
+.pg-table tr.pg-row--clickable:hover > td { background: var(--surface-low); }
+.pg-table tr.pg-row--dragging > td { opacity: 0.45; }
+.pg-table tr.pg-row--drop-before > td { box-shadow: inset 0 2px 0 var(--primary); }
+.pg-table tr.pg-row--drop-after > td { box-shadow: inset 0 -2px 0 var(--primary); }
+.pg-table .row-actions .tooltip-wrap { display: inline-flex; }
+.pg-num { text-align: right; white-space: nowrap; }
+.pg-nowrap { white-space: nowrap; }
+.pg-ellipsis { max-width: 10rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-muted { color: var(--text-muted); }
+.pg-small { font-size: 12px; }
+.pg-grow { flex: 1; min-width: 0; }
+.pg-drag-handle { cursor: grab; color: var(--text-faint); }
+.pg-search-input { width: 200px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); font: inherit; font-size: 13px; }
+
+/* A card's own header row (title, note, actions) — for cards that are not the page. */
+.pg-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.pg-card-header h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+.pg-card-header p { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
+
+/* Small labelled buttons in a row (Mount / Change / Unmount). */
+.btn.pg-btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn.pg-btn-sm .material-symbols-outlined { font-size: 16px; }
+
+/* Chips beyond the platform's active / inactive / pending. */
+.system-chip { white-space: nowrap; }
+.system-chip.pg-chip--info { color: var(--primary); background: var(--primary-light); }
+.system-chip.pg-chip--danger { color: var(--error); background: var(--error-light); }
+.system-chip.pg-chip--plain::before { display: none; }
+.pg-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; }
+
+/* Stat chips (Total / Mounted / Empty). */
+.pg-stats { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pg-stat { padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-pill); font-size: 12px; background: var(--surface-card); }
+.pg-stat strong { margin-left: 4px; }
+.pg-stat--good { border-color: #86efac; color: #15803d; }
+.pg-stat--warn { border-color: #fdba74; color: #c2410c; }
+
+/* ── Dialogs ────────────────────────────────────────────────────────────────────────────────── */
+.modal-box--pg-md { width: 620px; max-width: 96vw; }
+.modal-box--pg-lg { width: 860px; max-width: 96vw; }
+.modal-box--pg-xl { width: 1180px; max-width: 96vw; }
+.pg-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; padding-top: 8px; }
+.pg-form--single { grid-template-columns: 1fr; }
+.pg-form .field-full { grid-column: 1 / -1; }
+.pg-form textarea.system-field__control { resize: vertical; min-height: 64px; font-family: inherit; }
+.pg-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+.pg-hint--ok { color: var(--success); }
+.pg-hint--warn { color: var(--warning); }
+.pg-hint--error { color: var(--error); }
+.pg-hint .material-symbols-outlined, .pg-small.material-symbols-outlined { font-size: 14px; vertical-align: -2px; }
+.pg-checks { display: flex; gap: 28px; align-items: center; min-height: 40px; }
+.pg-file { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.pg-file__name { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.pg-dialog-context { margin: 4px 0 12px; font-size: 13px; color: var(--text-muted); }
+.pg-dialog-context strong { color: var(--text); }
+.pg-section-title { display: flex; align-items: center; gap: 6px; margin: 16px 0 8px; font-size: 13px; font-weight: 700; color: var(--text); }
+.pg-note { padding: 12px; border: 1px dashed var(--border); border-radius: var(--radius-lg); text-align: center; font-size: 12px; color: var(--text-muted); }
+
+/* Summary card: a thing's name, then label / value pairs (a set, a roll, an order...). */
+.pg-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-low); }
+.pg-summary__title { font-size: 18px; font-weight: 700; color: var(--text); }
+.pg-summary__item { display: flex; flex-direction: column; gap: 2px; padding-left: 20px; border-left: 1px solid var(--border); }
+.pg-summary__label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.pg-summary__value { font-size: 13px; font-weight: 600; color: var(--text); }
+
+/* Two tables with arrows between them (the platform's transfer layout, with columns). */
+.pg-transfer { display: grid; grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr); gap: 12px; margin-top: 16px; }
+.pg-transfer__panel { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.pg-transfer__search { display: flex; gap: 8px; padding: 8px; border-bottom: 1px solid var(--border-light); }
+.pg-transfer__search input { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); font: inherit; font-size: 13px; }
+.pg-transfer__search input.pg-narrow { flex: 0 0 90px; }
+.pg-transfer__body { max-height: 46vh; overflow: auto; }
+.pg-transfer__body .system-table { min-width: 560px; }
+.pg-transfer__arrows { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+
+/* ── Tabs (the platform has no shared strip; this follows its tracking pages) ──────────────── */
+.pg-tabs { display: flex; gap: 4px; margin-bottom: var(--space-md); border-bottom: 1px solid var(--border); }
+.pg-tab { display: inline-flex; align-items: center; gap: 6px; padding: 10px 16px; border: none; border-bottom: 3px solid transparent; background: none; color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pg-tab .material-symbols-outlined { font-size: 18px; }
+.pg-tab:hover { color: var(--text); }
+.pg-tab--active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* ── List on the left, detail on the right ──────────────────────────────────────────────────── */
+.pg-panes { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--space-md); align-items: start; }
+.pg-list { list-style: none; margin: 0; padding: 6px; max-height: calc(100vh - 26rem); overflow-y: auto; }
+.pg-list__item { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; }
+.pg-list__item:hover { background: var(--surface-low); }
+.pg-list__item--active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+.pg-list__search { padding: 8px 8px 0; }
+.pg-list__search input { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); font: inherit; font-size: 13px; }
+
+/* ── Full-screen image viewer ───────────────────────────────────────────────────────────────── */
+.pg-thumb { display: inline-block; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: zoom-in; line-height: 0; }
+.pg-thumb img { width: 40px; height: 40px; object-fit: cover; border-radius: 3px; }
+.pg-viewer { position: fixed; inset: 0; z-index: 2200; background: rgba(0, 0, 0, 0.85); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.pg-viewer img { max-width: 90vw; max-height: 85vh; transition: transform 0.15s ease; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); background: #fff; }
+.pg-viewer__tools { position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; }
+.pg-viewer__tools .btn-icon { background: rgba(255, 255, 255, 0.15); color: #fff; }
+.pg-viewer__tools .btn-icon:hover { background: rgba(255, 255, 255, 0.3); }

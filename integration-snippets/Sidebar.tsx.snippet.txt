@@ -1,0 +1,33 @@
+// ── components/Sidebar.tsx — one menu entry, replacing the 'slabyard' object ─────────────────
+//
+// Yard Management is SUB-PROJECT scoped: a yard belongs to a facility, so a site with two yards
+// runs two of these. It is matched with isAppMapped() (the sub project's own applications), not
+// isProjectAppMapped(). The application name must match public.application exactly.
+
+// 1. Next to the other has*Mapped declarations:
+  const hasYardManagementMapped = isAppMapped('Yard Management');
+  const [yardExpanded, setYardExpanded] = useState(false);
+
+// 2. In the applications array:
+          {
+            key: 'yard',
+            mapped: hasYardManagementMapped,
+            home: '/yard',
+            perm: 'YRDL',
+            label: 'Yard',
+            icon: 'view_in_ar',
+            match: /^\/yard\b/,
+            open: yardExpanded,
+            toggle: () => setYardExpanded(v => !v),
+            items: [
+              { to: '/yard',          icon: 'dashboard',      label: 'Yard Overview', perm: 'YRDD' },
+              { to: '/yard/operator', icon: 'front_hand',     label: 'Operator',      perm: 'YRDO' },
+              { to: '/yard/mill',     icon: 'schedule',       label: 'Mill Schedule', perm: 'YRDH' },
+              { to: '/yard/dispatch', icon: 'local_shipping', label: 'Dispatch',      perm: 'YRDH' },
+              { to: '/yard/qa',       icon: 'verified',       label: 'Quality',       perm: 'YRDQ' },
+              { to: '/yard/admin',    icon: 'tune',           label: 'Configuration', perm: 'YRDA' },
+            ],
+          },
+
+// Keep the items identical to nav_children in the registry snippet: they are the same menu,
+// declared in two places until the sidebar reads the registry directly.

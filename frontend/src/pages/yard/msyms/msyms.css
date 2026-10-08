@@ -1,0 +1,186 @@
+/* msyms.css — Tailwind for the embedded mSYMS UI, scoped so it cannot touch the platform.
+ *
+ * Deliberately NOT `@import "tailwindcss"`. That barrel pulls in preflight, Tailwind's
+ * global element reset, which would strip the platform's own button, heading, list and
+ * table styling across every other page in the app. Only the theme (custom properties) and
+ * the utilities are imported.
+ *
+ * The utilities themselves are confined by `important: '.msyms-root'` in
+ * tailwind.msyms.js, so each one compiles to `.msyms-root .thing { ... }`.
+ */
+
+@layer theme;
+
+@import 'tailwindcss/theme.css' layer(theme);
+
+/* Imported WITHOUT a cascade layer, deliberately.
+ *
+ * The platform's own reset at styles/index.css:73 is unlayered:
+ *     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ *
+ * Unlayered CSS wins over every layered rule regardless of specificity, so with the
+ * utilities in `@layer utilities` that `padding: 0` beat `.msyms-root .p-3` and silently
+ * flattened every padding and margin in the embedded UI — colours and borders still worked,
+ * because the reset does not touch those, which is what made it look like a spacing bug
+ * rather than a cascade one.
+ *
+ * Unlayered, normal specificity applies: `.msyms-root .p-3` (0,2,0) beats `*` (0,0,0).
+ * Safe to leave global-ish because `important: '.msyms-root'` already confines every
+ * utility to the embedded container.
+ *
+ * The theme stays layered — it only declares custom properties, which layers don't affect. */
+@import 'tailwindcss/utilities.css';
+
+@config '../../../../tailwind.msyms.js';
+
+/* mSYMS applied these to <body>. Scoped to the container instead, or it would repaint the
+ * whole platform black. */
+.msyms-root {
+  background: #0b0c10;
+  color: #93969a;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+}
+
+.msyms-root h1,
+.msyms-root h2,
+.msyms-root h3,
+.msyms-root h4,
+.msyms-root h5,
+.msyms-root h6 {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Preflight is off, so the handful of element resets the mSYMS markup genuinely relies on
+ * are restated here — scoped. Without these, platform styles for buttons and inputs bleed
+ * into the embedded screens. */
+.msyms-root button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.msyms-root input,
+.msyms-root select,
+.msyms-root textarea {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+}
+
+.msyms-root table { border-collapse: collapse; }
+.msyms-root ul, .msyms-root ol { list-style: none; margin: 0; padding: 0; }
+.msyms-root svg { display: block; }
+
+/* ── space-* and divide-*, written by hand ──────────────────────────────────
+ *
+ * Tailwind v4 compiles these to a compound selector — `:where(& > :not(:last-child))` —
+ * and the `important: '.msyms-root'` scoping does not compose with it: the output comes
+ * out as `.msyms-root .space-y-4 > :not(:last-child)) { ... }`, with an unbalanced
+ * parenthesis, so the browser discards the entire rule.
+ *
+ * The mSYMS screens use these 48 times, and they supply nearly every gap in the layout —
+ * without them the UI collapses into touching rows, which is exactly how it first
+ * rendered here.
+ *
+ * The alternative was to drop `important` and let utilities apply globally. Measured: only
+ * one class name (`active`) collides with the platform's stylesheets, so it was nearly
+ * safe — but "nearly" is not worth restyling the host application over, when the fix is
+ * this contained. Classic `> * + *` semantics; only the values mSYMS actually uses.
+ */
+.msyms-root .space-y-0   > * + * { margin-top: 0; }
+.msyms-root .space-y-1   > * + * { margin-top: calc(var(--spacing) * 1); }
+.msyms-root .space-y-1\.5 > * + * { margin-top: calc(var(--spacing) * 1.5); }
+.msyms-root .space-y-2   > * + * { margin-top: calc(var(--spacing) * 2); }
+.msyms-root .space-y-3   > * + * { margin-top: calc(var(--spacing) * 3); }
+.msyms-root .space-y-4   > * + * { margin-top: calc(var(--spacing) * 4); }
+.msyms-root .space-y-5   > * + * { margin-top: calc(var(--spacing) * 5); }
+.msyms-root .space-y-6   > * + * { margin-top: calc(var(--spacing) * 6); }
+
+.msyms-root .space-x-1  > * + * { margin-left: calc(var(--spacing) * 1); }
+.msyms-root .space-x-2  > * + * { margin-left: calc(var(--spacing) * 2); }
+.msyms-root .space-x-3  > * + * { margin-left: calc(var(--spacing) * 3); }
+.msyms-root .space-x-4  > * + * { margin-left: calc(var(--spacing) * 4); }
+.msyms-root .space-x-12 > * + * { margin-left: calc(var(--spacing) * 12); }
+
+.msyms-root .divide-y > * + * { border-top-width: 1px; border-top-style: solid; }
+.msyms-root .divide-\[\#1a1a1a\] > * + * { border-color: #1a1a1a; }
+.msyms-root .divide-\[\#222\]    > * + * { border-color: #222; }
+
+/* Tailwind's `md` breakpoint. */
+@media (min-width: 48rem) {
+  .msyms-root .md\:space-y-0 > * + * { margin-top: 0; }
+  .msyms-root .md\:space-x-4 > * + * { margin-left: calc(var(--spacing) * 4); }
+}
+
+/* ── Frame ────────────────────────────────────────────────────────────────────
+   What is left of mSYMS's own Layout once its sidebar, logo and user block were
+   removed as duplicates of the platform's. The screens keep their dark operator
+   palette — that is deliberate for a yard floor and a tablet in daylight — but
+   the chrome around them is the platform's now.
+
+   Hand-written rather than Tailwind utilities: this is the seam between the two
+   applications, and it should be legible to someone who knows neither. */
+.msyms-root .msyms-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--color-background, #0d1117);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* The one piece of mSYMS chrome worth keeping: an operator has to be able to see
+   at a glance whether what is on screen is live or stale. */
+.msyms-root .msyms-linkbar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.msyms-root .msyms-linkbar__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.msyms-root .msyms-linkbar__dot--on  { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
+.msyms-root .msyms-linkbar__dot--off { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16); }
+
+/* mSYMS's screens were written expecting to sit inside its own <main>, which
+   supplied this padding. */
+.msyms-root .msyms-screen {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-x: hidden;
+}
+
+/* Screens written as full-viewport panes.
+ *
+ * Standalone, the Quality inspector and the operator tablet each filled the window under
+ * mSYMS's own 64px header, and said so: `h-[calc(100vh-64px)]`, `min-h-screen`. Inside the
+ * platform there is more chrome above them than that — the app header, the breadcrumb, the
+ * link strip — so a pane sized to the whole viewport runs off the bottom and the page grows
+ * a second scrollbar inside the first.
+ *
+ * The height is declared once, here, rather than as an arithmetic literal repeated in three
+ * screens where nobody would think to change it if the header ever moved. The minimum stops
+ * it collapsing to nothing on a short laptop screen. */
+.msyms-root .msyms-fill {
+  height: calc(100vh - var(--msyms-chrome-h, 210px));
+  min-height: 460px;
+}

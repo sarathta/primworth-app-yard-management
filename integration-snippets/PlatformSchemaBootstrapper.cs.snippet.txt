@@ -1,0 +1,39 @@
+// ── Services/PlatformSchemaBootstrapper.cs — the registry row is the app's manifest ──────────
+//
+// public.application needs a "Yard Management" row with app_key = yard_management. On a site that
+// already has "Slab Yard Management System" (app_key slab_yard), rename that row instead of adding
+// one, so the facility mappings and role grants carry over: see sql/rename_slab_yard_to_yard.sql.
+//
+// Add this next to the other one-time registrations. Gated on provisioner_key IS NULL so it runs
+// once ever and a customer's later edits survive restarts.
+
+            connection.Execute(@"
+                UPDATE public.application
+                   SET is_integrated        = TRUE,
+                       route_path           = '/yard',
+                       permission_code      = 'YRDL',
+                       module_table_prefix  = 'sp_yard_',
+                       provisioner_key      = 'yard_management',
+                       icon                 = 'view_in_ar',
+                       application_scope_id = COALESCE(
+                           (SELECT scope_id FROM public.application_scope
+                             WHERE LOWER(TRIM(scope)) = 'sub project' LIMIT 1),
+                           application_scope_id),
+                       nav_children         = '[
+                           {""icon"": ""grid_on"",     ""label"": ""Areas"",       ""route_path"": ""/yard"",             ""permission_code"": ""YRDD""},
+                           {""icon"": ""inventory_2"", ""label"": ""Items"",       ""route_path"": ""/yard/items"",       ""permission_code"": ""YRDD""},
+                           {""icon"": ""front_hand"",  ""label"": ""Work Orders"", ""route_path"": ""/yard/work-orders"", ""permission_code"": ""YRDO""}
+                       ]'::jsonb
+                 WHERE app_key = 'yard_management'
+                   AND provisioner_key IS NULL;", transaction: tx);
+
+// ── The same change as plain SQL, for a site database that will not restart soon ────────────
+//
+// UPDATE public.application
+//    SET is_integrated = TRUE, route_path = '/yard', permission_code = 'YRDL', module_table_prefix = 'sp_yard_',
+//        provisioner_key = 'yard_management', icon = 'view_in_ar',
+//        application_scope_id = (SELECT scope_id FROM public.application_scope WHERE LOWER(TRIM(scope)) = 'sub project'),
+//        nav_children = '[{"icon":"grid_on","label":"Areas","route_path":"/yard","permission_code":"YRDD"},
+//                        {"icon":"inventory_2","label":"Items","route_path":"/yard/items","permission_code":"YRDD"},
+//                        {"icon":"front_hand","label":"Work Orders","route_path":"/yard/work-orders","permission_code":"YRDO"}]'::jsonb
+//  WHERE app_key = 'yard_management' AND provisioner_key IS NULL;

@@ -1,0 +1,26 @@
+// ── App.tsx — routes. Two edits, replacing the slab-yard block. ──────────────────────────────
+
+// 1. Imports, next to the other page imports:
+import YardRoot from './pages/yard/MsymsRoot';
+import YardDashboard from './pages/yard/Dashboard';
+import YardWorkspace from './pages/yard/TabletWorkspace';
+import YardAdmin from './pages/yard/AdminConfigurator';
+import YardDispatch from './pages/yard/DispatchQR';
+import YardQA from './pages/yard/QADashboard';
+import YardMill from './pages/yard/MillSchedule';
+
+// 2. Routes, inside the authenticated <Route element={<Shell/>}> block:
+          {/* Yard Management - sub-project scoped. The mSYMS screens as they were, re-parented
+              under /yard; MsymsRoot asks for a facility and supplies their two context providers. */}
+          <Route path="yard" element={<ProtectedRoute code="YRDL"><YardRoot /></ProtectedRoute>}>
+            <Route index element={<YardDashboard />} />
+            <Route path="operator" element={<YardWorkspace />} />
+            <Route path="admin" element={<YardAdmin />} />
+            <Route path="dispatch" element={<YardDispatch />} />
+            <Route path="qa" element={<YardQA />} />
+            <Route path="mill" element={<YardMill />} />
+          </Route>
+
+// Also: postcss.config.js and tailwind.msyms.js at the frontend root (the platform already has
+// them; the content glob must point at src/pages/yard/msyms/), and the four packages in
+// package.json.snippet.txt.

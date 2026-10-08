@@ -1,0 +1,17 @@
+// ── Services/Permissions/ModulePermissionSeeder.cs — append to the Permissions array ─────────
+// (code, name). Codes are four uppercase letters, module code first, and must match
+// [RequiresPermission(...)] on the controllers and the perm values in the Sidebar snippet.
+// YRDL is the one public.application.permission_code points at: "can see the module at all".
+// The seven mirror Slab Yard's SYMS / SYMD / SYMO / SYMQ / SYMU / SYMA / SYMH one for one.
+
+        // ── Yard Management ───────────────────────────────────────────────
+        ("YRDL", "Yard Management"),
+        ("YRDD", "Yard Management | Yard Overview"),
+        ("YRDO", "Yard Management | Operator Workspace"),
+        ("YRDQ", "Yard Management | Quality"),
+        ("YRDU", "Yard Management | Release QA Lock"),
+        ("YRDA", "Yard Management | Administration"),
+        ("YRDH", "Yard Management | Dispatch & Mill Schedule"),
+
+// When Slab Yard's SYMS* codes are retired, remove them from PlatformSchemaBootstrapper at the
+// same time; two trees for one module is the mistake that already happened once.

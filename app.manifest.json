@@ -1,0 +1,57 @@
+{
+  "$comment": "Describes Yard Management to the platform. starter-kit/tools/integrate.ps1 reads it; the dev shell reads it for routes and menu.",
+  "key": "yard_management",
+  "name": "Yard Management",
+  "codeName": "Yard",
+  "shortName": "Yard",
+  "scope": "SubProject",
+  "tablePrefix": "sp_yard_",
+  "provisionerKey": "yard_management",
+  "icon": "view_in_ar",
+  "permissionCode": "YRDL",
+  "permissions": [
+    ["YRDL", "Yard Management"],
+    ["YRDD", "Yard Management | Yard Overview"],
+    ["YRDO", "Yard Management | Operator Workspace"],
+    ["YRDQ", "Yard Management | Quality"],
+    ["YRDU", "Yard Management | Release QA Lock"],
+    ["YRDA", "Yard Management | Administration"],
+    ["YRDH", "Yard Management | Dispatch & Mill Schedule"]
+  ],
+  "backend": {
+    "project": "Apps.Yard",
+    "folder": "Yard",
+    "provisionerType": "Primworth_API.Repository.Yard.YardProvisioner",
+    "services": [
+      ["Primworth_API.Repository.Yard.IYardSchemaContext", "Primworth_API.Repository.Yard.YardSchemaContext"],
+      ["IYardZoneRepository", "Primworth_API.Repository.Yard.YardZoneRepository"],
+      ["IYardItemRepository", "Primworth_API.Repository.Yard.YardItemRepository"],
+      ["IYardWorkOrderRepository", "Primworth_API.Repository.Yard.YardWorkOrderRepository"],
+      ["IYardMasterRepository", "Primworth_API.Repository.Yard.YardMasterRepository"],
+      ["IYardCompatRepository", "Primworth_API.Repository.Yard.YardCompatRepository"]
+    ]
+  },
+  "frontend": {
+    "folder": "yard",
+    "routeBase": "/yard",
+    "root": "MsymsRoot",
+    "routes": [
+      { "path": "", "component": "Dashboard" },
+      { "path": "operator", "component": "TabletWorkspace" },
+      { "path": "mill", "component": "MillSchedule" },
+      { "path": "dispatch", "component": "DispatchQR" },
+      { "path": "qa", "component": "QADashboard" },
+      { "path": "admin", "component": "AdminConfigurator" }
+    ],
+    "serviceFile": "yard.ts",
+    "typesFile": "yard.ts",
+    "nav": [
+      { "label": "Yard Overview", "route_path": "/yard",          "icon": "dashboard",      "permission_code": "YRDD" },
+      { "label": "Operator",      "route_path": "/yard/operator", "icon": "front_hand",     "permission_code": "YRDO" },
+      { "label": "Mill Schedule", "route_path": "/yard/mill",     "icon": "schedule",       "permission_code": "YRDH" },
+      { "label": "Dispatch",      "route_path": "/yard/dispatch", "icon": "local_shipping", "permission_code": "YRDH" },
+      { "label": "Quality",       "route_path": "/yard/qa",       "icon": "verified",       "permission_code": "YRDQ" },
+      { "label": "Configuration", "route_path": "/yard/admin",    "icon": "tune",           "permission_code": "YRDA" }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    A small stand-in for the platform: the same authentication shape (JWT, everything requires a
+    user), the same tenant convention (X-Project-Id header), provisioning of every registered
+    application into the sample project on startup, Swagger. It hosts whichever Apps.* projects are
+    referenced below — new-app.ps1 adds the reference for a new application.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Platform.DevHost</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Platform.Sdk\Platform.Sdk.csproj" />
+    <!-- apps -->
+    <ProjectReference Include="..\Apps.Yard\Apps.Yard.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.13" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.1.1" />
+  </ItemGroup>
+
+</Project>

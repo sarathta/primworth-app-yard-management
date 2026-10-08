@@ -1,0 +1,6 @@
+// ── auth.ts — landing route (the candidates list in homeRouteForUser) ────────────────────────
+//
+// A plant user whose role has only yard permissions should land in the yard, not on Data
+// Management with an empty sidebar. Order is sidebar order.
+
+    ['YRDL', '/yard'],   // ← add (replaces ['SYMS', '/slab-yard'] once Slab Yard is renamed)

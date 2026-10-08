@@ -1,0 +1,26 @@
+﻿# A project name of its own: every kit keeps this file in a folder called db, and without it
+# Compose would treat all kits as one project and replace one kit's container with another's.
+name: primworth-app-yard-management
+
+services:
+  db:
+    image: postgres:16
+    container_name: primworth-app-yard-management-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: primworth_dev
+    ports:
+      - "5440:5432"
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - starter-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d primworth_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  starter-pgdata:
+    name: primworth-app-yard-management-pgdata

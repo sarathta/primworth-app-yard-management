@@ -1,0 +1,21 @@
+// ── Program.cs — the registrations, placed next to the other application provisioners ────────
+
+// 1. The provisioner. IApplicationProvisioner is resolved as a collection, so this is additive:
+//    ApplicationProvisioningService runs every registered provisioner whose key matches a
+//    selected application.
+builder.Services.AddScoped<IApplicationProvisioner, Primworth_API.Repository.Yard.YardProvisioner>();
+
+// 2. The facility resolver for the module (needs IHttpContextAccessor, already registered).
+builder.Services.AddScoped<Primworth_API.Repository.Yard.IYardSchemaContext,
+                           Primworth_API.Repository.Yard.YardSchemaContext>();
+
+// 3. Repositories, one line each. The compat repository serves the embedded mSYMS screens.
+builder.Services.AddScoped<IYardZoneRepository, Primworth_API.Repository.Yard.YardZoneRepository>();
+builder.Services.AddScoped<IYardItemRepository, Primworth_API.Repository.Yard.YardItemRepository>();
+builder.Services.AddScoped<IYardWorkOrderRepository, Primworth_API.Repository.Yard.YardWorkOrderRepository>();
+builder.Services.AddScoped<IYardMasterRepository, Primworth_API.Repository.Yard.YardMasterRepository>();
+builder.Services.AddScoped<IYardCompatRepository, Primworth_API.Repository.Yard.YardCompatRepository>();
+
+// Nothing else. No DbContext, no connection string, no middleware, no controller registration;
+// controllers in Controllers/Yard/ are discovered automatically. A background job (a simulator,
+// an ageing clock) is one AddHostedService line here when you add it.

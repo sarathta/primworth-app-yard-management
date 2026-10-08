@@ -1,0 +1,17 @@
+// ── package.json — what the mSYMS screens need ───────────────────────────────────────────────
+// The platform's frontend already has all of these; a fresh shell (the starter kit) does not.
+
+  "dependencies": {
+    "lucide-react": "^0.400.0",
+    "qrcode.react": "^4.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.5.0",
+    "tailwindcss": "^4.1.0"
+  }
+
+// Tailwind is confined to the mSYMS folder: tailwind.msyms.js limits `content` to
+// src/pages/yard/msyms and sets `important: '.msyms-root'`, and msyms.css imports only the theme
+// and the utilities, never preflight. The platform's own hand-rolled CSS is untouched.
