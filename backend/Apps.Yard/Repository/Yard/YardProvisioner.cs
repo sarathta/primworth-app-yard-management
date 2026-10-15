@@ -48,6 +48,16 @@ namespace Primworth_API.Repository.Yard
             // ("TMT_BUNDLE", "Bundle", "Bundles", "Bundle number", "Rack {row}, slot {col}", "[...]", "tmt_bundle-routing"),
         };
 
+        /// <summary>Yards offered after login. Skipped when a row with the same name already exists.</summary>
+        private static readonly (string Name, string Description)[] YardTypes =
+        {
+            ("Coil Yard", "Storage yard for coils"),
+            ("Billet Yard", "Storage yard for billets"),
+            ("TMT Storage Yard", "Storage yard for TMT material"),
+            ("Slab Yard", "Storage yard for slabs"),
+            ("Wire Rod Yard", "Storage yard for wire rods"),
+        };
+
         /// <summary>
         /// Feature flags and tuning, the Rule Book the Configurator edits. Seeded once, then owned
         /// by the customer, so re-provisioning never resets a live yard. The MODULE_* names are
@@ -73,6 +83,7 @@ namespace Primworth_API.Repository.Yard
         private static readonly (string Table, string DisplayName, string Description)[] TableComments =
         {
             ("sp_yard_material_type",      "Yard - Material Types",    "What the yard stores: words, fields and rule set per material."),
+            ("sp_yard_type",               "Yard - Yards",             "Yards the operator opens, such as Slab Yard and Coil Yard."),
             ("sp_yard_zone",               "Yard - Areas",             "Yard areas with purpose, storage style and accepted materials."),
             ("sp_yard_zone_material_type", "Yard - Area Materials",    "Which material types each area accepts."),
             ("sp_yard_position",           "Yard - Positions",         "Addressable places inside an area, with capacity."),
@@ -95,6 +106,7 @@ namespace Primworth_API.Repository.Yard
 
             // Parents first: every statement below carries foreign keys to the ones above it.
             await ExecuteAsync(ctx, YardDdl.CreateMaterialType, schema);
+            await ExecuteAsync(ctx, YardDdl.CreateYardType, schema);
             await ExecuteAsync(ctx, YardDdl.CreateZone, schema);
             await ExecuteAsync(ctx, YardDdl.CreateZoneMaterialType, schema);
             await ExecuteAsync(ctx, YardDdl.CreatePosition, schema);
@@ -116,6 +128,9 @@ namespace Primworth_API.Repository.Yard
                     position_label = mt.PositionLabel, attribute_defs = mt.Defs, rule_set_key = mt.RuleSet, user_id = userId,
                 });
             }
+
+            foreach (var (name, description) in YardTypes)
+                await ExecuteAsync(ctx, YardDdl.SeedYardType, schema, new { yard_type_name = name, description });
 
             foreach (var (key, value) in DefaultConfig)
                 await ExecuteAsync(ctx, YardDdl.SeedConfig, schema, new { config_key = key, config_value = value, user_id = userId });

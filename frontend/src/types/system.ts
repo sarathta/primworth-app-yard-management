@@ -17,6 +17,8 @@ export interface SubprojectOption {
   projectName?: string;
   oem_logo?: string;
   application_name?: string;
+  facility_type_id?: number | null;
+  facility_type_name?: string | null;
 }
 
 /** One child entry of an expandable application group in the sidebar. */

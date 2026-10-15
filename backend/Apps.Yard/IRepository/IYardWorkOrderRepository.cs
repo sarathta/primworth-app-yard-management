@@ -24,7 +24,7 @@ namespace Primworth_API.IRepository
         /// </summary>
         Task<IReadOnlyList<long>> AssignReworkAsync(string schema, long itemId, long reworkActivityId, long userId);
 
-        Task<IEnumerable<YardMovement>> GetActivityFeedAsync(string schema, int limit);
+        Task<IEnumerable<YardMovement>> GetActivityFeedAsync(string schema, int limit, string? materialType = null, long? yardTypeId = null);
         Task<IEnumerable<YardMovement>> GetItemHistoryAsync(string schema, long itemId);
     }
 }

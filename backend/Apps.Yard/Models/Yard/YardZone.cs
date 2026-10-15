@@ -15,7 +15,7 @@ namespace Primworth_API.Models.Yard
     ///   STACK   on top of each other; only the top is reachable, the rest become dig orders.
     ///   RACK    one item per addressed slot; everything reachable directly.
     ///   FLOOR   a marked area with a count and no addresses; one position holds the whole capacity.
-    ///   PYRAMID rows resting on rows; treated as STACK until a coil plant is real.
+    ///   PYRAMID rows resting on rows; only the top row is free, the rows beneath are locked.
     /// </summary>
     public static class YardStorageStyle
     {
@@ -27,6 +27,17 @@ namespace Primworth_API.Models.Yard
 
         /// <summary>Whether taking one item out can require moving others first.</summary>
         public static bool Digs(string? style) => style is Stack or Pyramid;
+
+        /// <summary>
+        /// The formation a new area uses when the screen does not name one.
+        /// Slab, plate and billet stack. A TMT bundle sits in a rack. Coil and wire rod default
+        /// to a rack (cradles); floor and pyramid are chosen on the area.
+        /// </summary>
+        public static string ForMaterial(string? typeKey) => (typeKey ?? "").Trim().ToUpperInvariant() switch
+        {
+            "TMT_BUNDLE" or "COIL" or "WIRE_ROD" => Rack,
+            _ => Stack,
+        };
     }
 
     // Maps "{facility_schema}".sp_yard_zone, plus two counts joined for display.
@@ -65,6 +76,7 @@ namespace Primworth_API.Models.Yard
         public string zone_name { get; set; } = "";
         public string zone_purpose { get; set; } = YardZonePurpose.Storage;
         public string storage_style { get; set; } = YardStorageStyle.Stack;
+        public long? yard_type_id { get; set; }
         public List<string> material_type_keys { get; set; } = new();
         public int rows { get; set; } = 1;
         public int cols { get; set; } = 1;

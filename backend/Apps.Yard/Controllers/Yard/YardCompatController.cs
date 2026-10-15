@@ -30,10 +30,10 @@ namespace Primworth_API.Controllers.Yard
         /// <summary>GET compat/zones: zones with nested columns and slabs, the whole yard in one call.</summary>
         [RequiresPermission(Dashboard, Operator, Quality, Mill, Admin)]
         [HttpGet("zones")]
-        public Task<IActionResult> GetZones([FromQuery] long? projectId, [FromQuery] long? subProjectId)
+        public Task<IActionResult> GetZones([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromQuery] long? yardTypeId)
             => RunRead(async schema =>
             {
-                var o = await _compat.GetOverviewAsync(schema);
+                var o = await _compat.GetOverviewAsync(schema, materialType, yardTypeId);
                 var itemsByPosition = o.items.GroupBy(i => i.position_id).ToDictionary(g => g.Key, g => g.OrderBy(i => i.stack_index).ToList());
                 var positionsByZone = o.positions.GroupBy(p => p.zone_id).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -66,25 +66,38 @@ namespace Primworth_API.Controllers.Yard
         /// <summary>
         /// POST compat/zones: the Configurator's "Create Zone". The screen describes the grid cell by
         /// cell (zero-based); the yard creates a uniform grid (one-based) and corrects the odd cells.
-        /// The new area accepts every active material type, as a slab plant has one.
+        /// A material chosen on the yard is the only one the new area accepts. With none named, it
+        /// accepts every active material, which is what a single-material plant already did.
         /// </summary>
         [RequiresPermission(Admin)]
         [HttpPost("zones")]
-        public Task<IActionResult> CreateZone([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromBody] CompatZoneBody body)
+        public Task<IActionResult> CreateZone([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromQuery] long? facilityTypeId, [FromQuery] long? yardTypeId, [FromBody] CompatZoneBody body)
             => Run(async schema =>
             {
                 var cells = body.columns ?? new List<CompatColumnBody>();
                 if (cells.Count == 0) return BadRequest(new { error = "A zone needs at least one pit. Set the grid size and try again." });
 
                 var uniform = cells.GroupBy(c => c.capacity_limit).OrderByDescending(g => g.Count()).First().Key;
-                var types = (await _zones.GetMaterialTypesAsync(schema, false)).Select(t => t.type_key).ToList();
+                var typeId = facilityTypeId is > 0
+                    ? facilityTypeId
+                    : await Schema.FacilityTypeIdAsync(Schema.ProjectIdOrHeader(projectId), Schema.SubProjectIdOrHeader(subProjectId));
+                var types = (await _zones.GetMaterialTypesAsync(schema, false, typeId)).Select(t => t.type_key).ToList();
+                if (!string.IsNullOrWhiteSpace(materialType))
+                {
+                    var match = types.FirstOrDefault(t => string.Equals(t, materialType.Trim(), StringComparison.OrdinalIgnoreCase));
+                    if (match == null) return BadRequest(new { error = $"This facility does not store {materialType.Trim()}." });
+                    types = new List<string> { match };
+                }
 
                 var input = new YardZoneInput
                 {
                     zone_name = body.name ?? "",
                     zone_purpose = FromScreenType(body.type),
-                    storage_style = string.IsNullOrWhiteSpace(body.storage_style) ? YardStorageStyle.Stack : body.storage_style!,
+                    storage_style = string.IsNullOrWhiteSpace(body.storage_style)
+                        ? YardStorageStyle.ForMaterial(types.Count == 1 ? types[0] : materialType)
+                        : body.storage_style!,
                     material_type_keys = types,
+                    yard_type_id = yardTypeId,
                     rows = cells.Max(c => c.row_index) + 1,
                     cols = cells.Max(c => c.col_index) + 1,
                     capacity_limit = uniform,
@@ -128,13 +141,13 @@ namespace Primworth_API.Controllers.Yard
 
         [RequiresPermission(Dashboard, Operator, Quality, Mill, Admin)]
         [HttpGet("slabs")]
-        public Task<IActionResult> GetSlabs([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? quality_status)
-            => RunRead(async schema => Ok((await _compat.GetItemsAsync(schema, quality_status)).Select(FullSlabShape)), projectId, subProjectId, Array.Empty<object>());
+        public Task<IActionResult> GetSlabs([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? quality_status, [FromQuery] string? materialType, [FromQuery] long? yardTypeId)
+            => RunRead(async schema => Ok((await _compat.GetItemsAsync(schema, quality_status, materialType, yardTypeId)).Select(FullSlabShape)), projectId, subProjectId, Array.Empty<object>());
 
         [RequiresPermission(Dashboard, Mill, Admin)]
         [HttpGet("slabs/dispatch")]
-        public Task<IActionResult> DispatchCandidates([FromQuery] long? projectId, [FromQuery] long? subProjectId)
-            => RunRead(async schema => Ok((await _compat.GetDispatchCandidatesAsync(schema)).Select(FullSlabShape)), projectId, subProjectId, Array.Empty<object>());
+        public Task<IActionResult> DispatchCandidates([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromQuery] long? yardTypeId)
+            => RunRead(async schema => Ok((await _compat.GetDispatchCandidatesAsync(schema, materialType, yardTypeId)).Select(FullSlabShape)), projectId, subProjectId, Array.Empty<object>());
 
         /// <summary>POST compat/slabs/ship: the slab leaves the yard at the dispatch station.</summary>
         [RequiresPermission(Mill)]

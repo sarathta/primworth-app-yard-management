@@ -12,6 +12,14 @@ export interface AttributeDef {
   required?: boolean;
 }
 
+/** A row of sp_yard_type: Slab Yard, Coil Yard, and the rest. */
+export interface YardTypeOption {
+  yard_type_id: number;
+  yard_type_name: string;
+  description?: string | null;
+  is_active: boolean;
+}
+
 export interface MaterialType {
   material_type_id: number;
   type_key: string;
@@ -22,6 +30,7 @@ export interface MaterialType {
   /** JSON text of AttributeDef[]; parse with parseAttributeDefs. */
   attribute_defs: string;
   rule_set_key: string | null;
+  facility_type_id?: number | null;
   is_active: boolean;
 }
 

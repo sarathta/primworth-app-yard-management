@@ -3,12 +3,42 @@ namespace Primworth_API.Queries.Yard
     /// <summary>SQL for areas, positions and material types. "{schema}" is the only interpolation.</summary>
     public static class YardZoneQueries
     {
+        /// <summary>
+        /// Materials for one facility. @facility_type_id null means every row. A tagged row appears
+        /// only for its facility type. An untagged row appears only when this facility has none tagged,
+        /// so an older yard that has not been classified still opens.
+        /// </summary>
+        public const string GetFacilityTypes = @"
+            SELECT facility_type_id, facility_type_name, description
+            FROM ""{schema}"".gm_facility_type
+            ORDER BY facility_type_id;";
+
+        /// <summary>Every yard the operator can open. Inactive rows stay in the list so a switched-off yard can still be chosen.</summary>
+        public const string GetYardTypes = @"
+            SELECT yard_type_id, yard_type_name, description, is_active
+            FROM ""{schema}"".sp_yard_type
+            WHERE is_deleted = FALSE
+            ORDER BY yard_type_id;";
+
         public const string GetMaterialTypes = @"
             SELECT material_type_id, type_key, singular, plural, id_label, position_label,
-                   attribute_defs::text AS attribute_defs, rule_set_key, is_active
+                   attribute_defs::text AS attribute_defs, rule_set_key, is_active, facility_type_id
             FROM ""{schema}"".sp_yard_material_type
             WHERE is_deleted = FALSE AND (@include_inactive OR is_active)
-            ORDER BY type_key;";
+              AND (
+                    @facility_type_id IS NULL
+                    OR facility_type_id = @facility_type_id
+                    OR (
+                        facility_type_id IS NULL
+                        AND NOT EXISTS (
+                            SELECT 1 FROM ""{schema}"".sp_yard_material_type tagged
+                            WHERE tagged.is_deleted = FALSE
+                              AND (@include_inactive OR tagged.is_active)
+                              AND tagged.facility_type_id = @facility_type_id
+                        )
+                    )
+                  )
+            ORDER BY material_type_id;";
 
         public const string GetMaterialTypeByKey = @"
             SELECT material_type_id, type_key, singular, plural, id_label, position_label,
@@ -70,8 +100,8 @@ namespace Primworth_API.Queries.Yard
 
         public const string InsertZone = @"
             INSERT INTO ""{schema}"".sp_yard_zone
-                (zone_name, zone_purpose, storage_style, created_by, created_on, updated_by, updated_on)
-            VALUES (@zone_name, @zone_purpose, @storage_style, @user_id, NOW(), @user_id, NOW())
+                (zone_name, zone_purpose, storage_style, yard_type_id, created_by, created_on, updated_by, updated_on)
+            VALUES (@zone_name, @zone_purpose, @storage_style, @yard_type_id, @user_id, NOW(), @user_id, NOW())
             RETURNING zone_id;";
 
         public const string InsertZoneMaterialType = @"

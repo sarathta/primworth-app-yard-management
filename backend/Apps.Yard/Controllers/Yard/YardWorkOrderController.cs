@@ -65,8 +65,8 @@ namespace Primworth_API.Controllers.Yard
 
         /// <summary>GET api/yard/work-orders/activity-feed?limit=50</summary>
         [HttpGet("activity-feed")]
-        public Task<IActionResult> ActivityFeed([FromQuery] int limit, [FromQuery] long? projectId, [FromQuery] long? subProjectId)
-            => Run(async schema => Ok(Envelope(await _orders.GetActivityFeedAsync(schema, limit), "Activity fetched.")), projectId, subProjectId);
+        public Task<IActionResult> ActivityFeed([FromQuery] int limit, [FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType)
+            => Run(async schema => Ok(Envelope(await _orders.GetActivityFeedAsync(schema, limit, materialType), "Activity fetched.")), projectId, subProjectId);
 
         /// <summary>GET api/yard/work-orders/items/{itemId}/history</summary>
         [HttpGet("items/{itemId:long}/history")]

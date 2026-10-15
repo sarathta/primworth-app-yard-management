@@ -1,69 +1,96 @@
+import { useEffect } from 'react';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjectContext } from '../../../contexts/ProjectContext';
-import SelectSubProjectNotice from '../components/SelectSubProjectNotice';
+import { useYardSelection } from '../../../contexts/YardSelectionContext';
+import { YardMaterialScope } from '../components/MaterialGate';
+import SelectYardsNotice from '../components/SelectYardsNotice';
+import { materialFromYard } from '../yardMaterial';
 import { AuthProvider } from './contexts/AuthContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { Layout } from './components/Layout';
 import MsymsErrorBoundary from './MsymsErrorBoundary';
-import { setSymsTenant } from './symsApi';
+import { setSymsFacilityType, setSymsMaterial, setSymsTenant, setSymsYardType } from './symsApi';
 import './msyms.css';
-// Only for the "select a sub project" notice, which renders outside .msyms-root and so
-// uses the platform's own styling rather than Tailwind.
 import './slab-yard.css';
 
 /**
  * Mount point for the embedded mSYMS UI.
  *
- * Replaces the original App.tsx, which owned a BrowserRouter and a Login route. The
- * platform already provides both, so this keeps only what is genuinely mSYMS's: its two
- * context providers and its Layout (the dark sidebar with Dashboard / Active Work /
- * Dispatch Engine / QA Inspector / Mill Operations / Configurator). The screens themselves
- * are untouched and render through Layout's <Outlet />, as child routes declared in
- * App.tsx.
- *
- * `.msyms-root` is what confines Tailwind: every generated utility is compiled under that
- * selector, so the mSYMS styles cannot reach the platform shell around it.
+ * After login the operator picks yards from sp_yard_type. Each chosen yard is a menu
+ * group on the left; the open group is yardTypeId on the address, and every screen
+ * request is limited to the areas of that yard.
  */
 export default function MsymsRoot(): React.JSX.Element {
-  const { projectId, subProjectId, isPlatform } = useProjectContext();
+  const { projectId, subProjectId, subProjects, projects, setSubProject, isPlatform } = useProjectContext();
+  const { selected } = useYardSelection();
+  const [params] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // The screens call the API from plain functions, not components, so they cannot read
-  // React context. The tenant is pushed into the fetch shim instead.
-  //
-  // Set during render, NOT in an effect: React runs child effects before parent effects,
-  // so a useEffect here would fire after Dashboard's first fetch — which would then go out
-  // with no tenant, resolve no schema, and come back empty. Writing a module variable
-  // during render is safe because it is idempotent and touches no React state.
+  useEffect(() => {
+    if (subProjectId || subProjects.length === 0) return;
+    const first = subProjects[0];
+    setSubProject(String(first.id), first.name, 'Yard Management');
+  }, [subProjectId, subProjects, setSubProject]);
+
   setSymsTenant({ projectId, subProjectId });
 
-  const scoped = !isPlatform && !!projectId && !!subProjectId;
+  const choosing = params.get('choose') === '1' || selected.length === 0;
+  const yardId = Number(params.get('yardTypeId'));
+  const yard = !choosing ? selected.find(y => y.yard_type_id === yardId) : undefined;
 
-  // Standalone mSYMS was single-tenant and had no notion of this; inside the platform a
-  // yard belongs to a facility, and without one there is no database schema to read.
-  if (!scoped) {
-    return <div className="slab-yard"><SelectSubProjectNotice action="open its yard" /></div>;
+  setSymsYardType(yard?.yard_type_id ?? null);
+  setSymsMaterial('');
+  setSymsFacilityType(null);
+
+  if (isPlatform || !projectId) {
+    return (
+      <div className="slab-yard">
+        <div className="system-empty-state">
+          <span className="material-symbols-outlined">warehouse</span>
+          <h3>Select yards</h3>
+          <p>Sign in to a project to open its yards.</p>
+        </div>
+      </div>
+    );
   }
 
-  // Keyed on the facility, which remounts every screen below when the user switches
-  // sub project.
-  //
-  // Without it the tenant changed under screens that never re-read it: their fetch effects
-  // depend on [token] or [socket], not on the facility, so Dashboard and QA showed the
-  // previous yard's slabs until the 15-second poll happened to fire, and Mill Schedule and
-  // the Configurator — which register no poll at all — showed them indefinitely. Worse, a
-  // write issued in that window carried the new facility in the query string while the row
-  // id came from the old one.
-  //
-  // Remounting is the honest fix here rather than threading the facility through 53 call
-  // sites: switching plant is a change of everything on screen, not a refresh of it.
+  if (!subProjectId && (projects.length === 0 || subProjects.length > 0)) {
+    return (
+      <div className="slab-yard">
+        <div className="system-empty-state"><p>Loading yards...</p></div>
+      </div>
+    );
+  }
+
+  if (choosing) {
+    if (location.pathname !== '/yard') return <Navigate to="/yard?choose=1" replace />;
+    return (
+      <div className="slab-yard">
+        <SelectYardsNotice />
+      </div>
+    );
+  }
+
+  if (!yard) {
+    const path = location.pathname.startsWith('/yard') ? location.pathname : '/yard';
+    return <Navigate to={`${path}?yardTypeId=${selected[0].yard_type_id}`} replace />;
+  }
+
   return (
-    <div className="msyms-root">
-      <MsymsErrorBoundary key={`${projectId}:${subProjectId}`}>
-        <AuthProvider>
-          <SocketProvider>
-            <Layout />
-          </SocketProvider>
-        </AuthProvider>
-      </MsymsErrorBoundary>
-    </div>
+    <YardMaterialScope
+      material={materialFromYard(yard.yard_type_name)}
+      onChangeYards={() => navigate('/yard?choose=1')}
+    >
+      <div className="msyms-root" key={yard.yard_type_id}>
+        <MsymsErrorBoundary key={`${projectId}:${subProjectId}:${yard.yard_type_id}`}>
+          <AuthProvider>
+            <SocketProvider>
+              <Layout />
+            </SocketProvider>
+          </AuthProvider>
+        </MsymsErrorBoundary>
+      </div>
+    </YardMaterialScope>
   );
 }

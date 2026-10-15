@@ -66,6 +66,13 @@ namespace Primworth_API.Queries.Yard
             LEFT JOIN ""{schema}"".sp_yard_item i ON i.item_id = l.item_id";
 
         public const string GetActivityFeed = SelectMovement + @"
+            LEFT JOIN ""{schema}"".sp_yard_material_type mt ON mt.material_type_id = i.material_type_id
+            WHERE (@type_key IS NULL OR LOWER(mt.type_key) = LOWER(@type_key))
+              AND (@yard_type_id IS NULL
+                   OR EXISTS (
+                        SELECT 1 FROM ""{schema}"".sp_yard_zone yz
+                        WHERE yz.is_deleted = FALSE AND yz.yard_type_id = @yard_type_id
+                          AND yz.zone_id IN (l.from_zone_id, l.to_zone_id, i.zone_id)))
             ORDER BY l.log_timestamp DESC LIMIT @limit;";
 
         public const string GetItemHistory = SelectMovement + @"

@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { Settings2, Check, ExternalLink, Activity, AlertCircle, Trash2, Plus, ArrowRightToLine, ArrowLeftToLine, Maximize2, Minimize2, Search, X, Clock, MapPin, History, ShieldAlert, Flame } from 'lucide-react';
+import { Settings2, ExternalLink, Activity, AlertCircle, ArrowRightToLine, ArrowLeftToLine, Maximize2, Minimize2, Search, X, Clock, MapPin, History, ShieldAlert } from 'lucide-react';
 import { symsFetch } from '../symsApi';
 import { hasPermission } from '../../../../auth';
+import { useYardMaterial } from '../../components/MaterialGate';
 import { PlantLinkBadge } from '../components/PlantLinkBadge';
+import { ZoneFormation } from '../components/ZoneFormation';
+import { FORMATION, asFormation, defaultFormation } from '../../formations';
+import { pieceFrame, pieceShape } from '../../materialShape';
 
 export const Dashboard: React.FC = () => {
     const { token } = useAuth();
     const { socket, connected } = useSocket();
+    const { material } = useYardMaterial();
 
     // Was `user?.role === 'Admin'` — a standalone mSYMS role name the platform never
     // produces, so Edit Sectors was hidden from everybody including the super admin. Same
@@ -43,7 +48,7 @@ export const Dashboard: React.FC = () => {
 
     const formatStackName = (row: number, col: number) => {
         const format = rules.rule_nomenclature_format || 'R{row} - C{col}';
-        return format.replace('{row}', String(row + 1)).replace('{col}', String(col + 1));
+        return format.replace('{row}', String(row)).replace('{col}', String(col));
     };
 
     const fetchDashboard = async () => {
@@ -174,7 +179,7 @@ export const Dashboard: React.FC = () => {
                 <div className="flex items-center space-x-3">
                     <div className="relative">
                         <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
-                        <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search heat / slab ID..."
+                        <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={`Search heat / ${material.id_label}...`}
                             className="pl-8 pr-3 py-1.5 bg-[#0B0C10] border border-[#333] rounded text-white text-xs focus:border-accent focus:outline-none placeholder-[#555] w-52" />
                         {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-white"><X size={12} /></button>}
                     </div>
@@ -216,7 +221,7 @@ export const Dashboard: React.FC = () => {
                                 </div>
                                 <div className="flex flex-col justify-center">
                                     <div className="text-sm font-black uppercase tracking-widest text-white mb-1 truncate">{zone.name}</div>
-                                    <div className="text-[10px] uppercase font-bold tracking-widest text-secondary bg-[#1a1c23] inline-block px-2 py-0.5 rounded">{used} / {totalCap} Slabs</div>
+                                    <div className="text-[10px] uppercase font-bold tracking-widest text-secondary bg-[#1a1c23] inline-block px-2 py-0.5 rounded">{used} / {totalCap} {material.plural}</div>
                                 </div>
                             </div>
                         );
@@ -229,12 +234,21 @@ export const Dashboard: React.FC = () => {
 
                 {/* Zone Grid Panel */}
                 <div className="flex-1 h-full overflow-y-auto pr-4 thin-scrollbar">
+                    {zones.length === 0 && (
+                        <div className="border border-dashed border-[#333] rounded-xl p-10 text-center text-secondary text-sm">
+                            <p>No areas in this facility accept {material.plural.toLowerCase()} yet.</p>
+                            <p className="mt-2 text-[11px] uppercase tracking-widest text-[#666]">
+                                {FORMATION[defaultFormation(material.type_key)].label} — {FORMATION[defaultFormation(material.type_key)].rule}
+                            </p>
+                        </div>
+                    )}
                     <div className={isFullscreen ? "columns-1 xl:columns-2 3xl:columns-3 gap-6 pb-20" : "space-y-6 pb-20"}>
                         {zones.map(zone => {
                             const colsCount = zone.layout_config?.cols || 1;
                             const themeClasses = getTheme(zone.type);
                             const isCompromised = zone.is_compromised === true;
                             const isLinear = zone.type !== 'STORAGE';
+                            const formation = asFormation(zone.storage_style);
 
                             return (
                                 <div key={zone.id} className={`break-inside-avoid mb-6 bg-[#0B0C10] border p-4 rounded-xl shadow-2xl transition-all ${isCompromised ? 'border-danger animate-pulse-border' : themeClasses.split(' ').find(c => c.startsWith('border-')) || 'border-[#333]'}`}>
@@ -244,6 +258,7 @@ export const Dashboard: React.FC = () => {
                                         <div className={`text-lg uppercase font-black tracking-widest flex items-center ${isCompromised ? 'text-danger' : themeClasses.split(' ')[0]}`}>
                                             {zone.name}
                                             <span className="ml-4 text-[9px] text-secondary font-mono border border-[#333] rounded px-2 py-0.5 bg-primary">{zone.type}</span>
+                                            {!isLinear && <span className="ml-2 text-[9px] text-accent font-mono border border-accent/40 rounded px-2 py-0.5 bg-accent/10">{FORMATION[formation].label}</span>}
                                             {isCompromised && (
                                                 <span className="ml-3 text-[10px] font-bold text-danger border border-danger/50 bg-danger/10 px-2 py-0.5 rounded flex items-center">
                                                     <ShieldAlert size={11} className="mr-1" />COMPROMISED
@@ -273,14 +288,14 @@ export const Dashboard: React.FC = () => {
                                                                 if (isDefect) chipColor = 'bg-gradient-to-r from-danger to-[#8B0000] text-white';
                                                                 else if (isQALocked) chipColor = 'bg-gradient-to-r from-warning/60 to-warning text-black';
                                                                 else if (isStale) chipColor = 'bg-gradient-to-r from-[#6b4c00] to-[#b87d00] text-white';
+                                                                const shape = pieceShape(slab.material_type || material.type_key);
+                                                                const onPiece = shape === 'slab' || shape === 'plate' || shape === 'billet';
                                                                 return (
                                                                     <div key={slab.id} onClick={() => openSlabDetail(slab)}
-                                                                        title={`${slab.id}\n${slab.heat_number}${isStale ? '\n⚠ STALE' : ''}${isQALocked ? '\n🔒 QA HOLD' : ''}`}
-                                                                        className={`h-9 px-3 rounded flex items-center gap-1.5 cursor-pointer hover:brightness-125 transition-all shadow border shrink-0 ${chipColor} ${isQALocked ? 'border-warning' : 'border-black/30'} ${matchesSearch ? 'ring-2 ring-white scale-105 animate-pulse' : ''}`}>
-                                                                        {isStale && <Clock size={9} />}
-                                                                        {isQALocked && <span className="text-[9px]">🔒</span>}
-                                                                        <span className="font-black text-[11px] font-mono tracking-widest">{slab.heat_number || slab.id}</span>
-                                                                        <span className="text-[9px] opacity-70 hidden sm:inline">{slab.heat_number}</span>
+                                                                        title={`${slab.heat_number || slab.id}${isStale ? '\nStale' : ''}${isQALocked ? '\nQA hold' : ''}`}
+                                                                        className={`${pieceFrame(shape)} overflow-hidden cursor-pointer hover:brightness-125 transition-all shadow border shrink-0 flex items-center justify-center ${chipColor} ${isQALocked ? 'border-warning' : 'border-black/30'} ${matchesSearch ? 'ring-2 ring-white scale-105' : ''}`}>
+                                                                        {isStale && <Clock size={9} className="shrink-0" />}
+                                                                        {onPiece && <span className="font-black text-[8px] font-mono tracking-widest truncate px-0.5">{slab.heat_number || slab.id}</span>}
                                                                     </div>
                                                                 );
                                                             })}
@@ -291,86 +306,21 @@ export const Dashboard: React.FC = () => {
                                         </div>
                                     )}
 
-                                    {/* ── STORAGE zones: vertical stack pit grid ── */}
                                     {!isLinear && (
-                                        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${colsCount}, minmax(0, 1fr))` }}>
-                                            {zone.columns?.map((col: any) => {
-                                                const isEditing = editCaps[col.id] !== undefined;
-                                                const draftVal = isEditing ? editCaps[col.id] : col.capacity_limit;
-                                                const sortedSlabs = (col.slabs || []).slice().sort((a: any, b: any) => (a.stack_index || 0) - (b.stack_index || 0));
-
-                                                if (col.capacity_limit === 0 && !isEditMode) {
-                                                    return <div key={col.id} className="bg-transparent border border-dashed border-[#222] flex items-center justify-center text-[#444] text-[10px] uppercase rounded h-64">Disabled</div>;
-                                                }
-
-                                                return (
-                                                    <div key={col.id} className={`p-2 rounded border transition-all relative flex flex-col ${isFullscreen ? 'h-[180px]' : 'h-[256px]'} shrink-0 ${col.capacity_limit === 0 ? 'bg-[#1a1111] border-danger/50' : 'bg-primary border-[#333]'} ${isEditMode ? 'ring-2 ring-accent/30 bg-[#161f1c]' : ''}`}>
-                                                        <div className="flex justify-between items-center mb-2 px-1">
-                                                            <div className="text-[10px] uppercase font-bold tracking-widest text-[#888]">{formatStackName(col.row_index, col.col_index)}</div>
-                                                            {isEditMode ? (
-                                                                <div className="flex items-center space-x-1">
-                                                                    {col.capacity_limit > 0 ? (
-                                                                        <>
-                                                                            <input type="number" min="0" value={draftVal} onChange={e => setEditCaps({ ...editCaps, [col.id]: parseInt(e.target.value) || 0 })}
-                                                                                className="w-10 bg-black border border-gray-600 rounded text-accent tracking-widest font-black text-center py-0.5 text-[10px] focus:outline-none" />
-                                                                            {isEditing && <button onClick={() => handleSaveColumn(col.id, draftVal)} className="text-success hover:bg-success/20 p-1 rounded border border-success"><Check size={12} /></button>}
-                                                                            <button onClick={() => handleSaveColumn(col.id, 0)} className="text-danger hover:bg-danger/20 p-1 rounded ml-1 bg-[#1a1111] border border-danger/50"><Trash2 size={12} /></button>
-                                                                        </>
-                                                                    ) : (
-                                                                        <button onClick={() => handleSaveColumn(col.id, 10)} className="text-success hover:bg-success/20 p-1 rounded bg-[#111a11] border border-success/50 flex items-center"><Plus size={12} className="mr-1" />ENABLE</button>
-                                                                    )}
-                                                                </div>
-                                                            ) : (
-                                                                <div className={`text-[10px] font-mono tracking-widest ${sortedSlabs.length >= col.capacity_limit ? 'text-danger' : 'text-success'}`}>{sortedSlabs.length} / {col.capacity_limit}</div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Stack Pit */}
-                                                        <div className="flex-1 w-full bg-[#050608] border border-[#1a1a1a] rounded flex flex-col-reverse justify-start p-1 overflow-y-auto overflow-x-hidden relative shadow-[inset_0_4px_10px_rgba(0,0,0,0.5)] thin-scrollbar">
-                                                            {col.capacity_limit === 0 ? (
-                                                                <div className="absolute inset-0 flex items-center justify-center -rotate-90 text-[10px] tracking-widest font-bold text-danger/30 uppercase">DEAD SPACE</div>
-                                                            ) : sortedSlabs.length === 0 ? (
-                                                                <div className="absolute inset-0 flex flex-col justify-end">
-                                                                    {[...Array(col.capacity_limit)].map((_, idx) => (
-                                                                        <div key={idx} style={{ height: `${100 / col.capacity_limit}%` }} className="w-full mb-[2px] border-b border-dashed border-[#1a1a1a] opacity-30" />
-                                                                    ))}
-                                                                </div>
-                                                            ) : (
-                                                                sortedSlabs.map((slab: any) => {
-                                                                    const chem = slab.chemistry_data as any || {};
-                                                                    const isDefect = chem.grade?.includes('DEFECT');
-                                                                    const isStale = slab.stale_flagged === true;
-                                                                    const isQALocked = slab.quality_status === 'LOCKED_QA';
-                                                                    const isHot = slab.temperature_state === 'HOT';
-                                                                    const matchesSearch = searchQuery && (slab.heat_number?.toLowerCase().includes(searchQuery.toLowerCase()) || slab.id?.toLowerCase().includes(searchQuery.toLowerCase()));
-                                                                    let bgClass = 'bg-gradient-to-r from-[#216e54] to-accent text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] font-bold';
-                                                                    if (isDefect) bgClass = 'bg-gradient-to-r from-danger to-[#8B0000] text-white';
-                                                                    else if (isQALocked) bgClass = 'bg-gradient-to-r from-warning/60 to-warning text-black';
-                                                                    else if (isStale) bgClass = 'bg-gradient-to-r from-[#6b4c00] to-[#b87d00] text-white font-bold drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]';
-                                                                    
-                                                                    const tooltipText = `ID: ${slab.id}\nHeat: ${slab.heat_number}\nGrade: ${chem.grade || 'Standard'}\nTarget Reheat: ${slab.target_reheat_temp ? slab.target_reheat_temp + '°C' : 'N/A'}\nRolling Width: ${slab.rolling_width || 'N/A'}mm\nCast Time: ${slab.cast_time ? new Date(slab.cast_time).toLocaleString() : 'N/A'}\n${isHot ? '🔥 HOT CHARGE READY\n' : ''}${isStale ? '⚠ STALE SLAB' : ''}${isQALocked ? '🔒 QA HOLD' : ''}`;
-
-                                                                    return (
-                                                                        <div key={slab.id}
-                                                                            style={{ height: `${100 / col.capacity_limit}%` }}
-                                                                            onClick={() => openSlabDetail(slab)}
-                                                                            className={`w-full mb-[3px] rounded flex items-center justify-center shrink-0 shadow-[inset_0_-2px_5px_rgba(0,0,0,0.6)] border cursor-pointer hover:brightness-125 transition-all ${bgClass} ${isQALocked ? 'border-warning' : isHot ? 'border-[#ff4500] shadow-[0_0_8px_rgba(255,69,0,0.8)] animate-pulse' : 'border-[#000]'} ${matchesSearch ? 'ring-2 ring-white scale-[1.03] z-10 animate-pulse' : ''}`}
-                                                                            title={tooltipText}>
-                                                                            <div className="font-black text-[11px] tracking-widest font-mono select-none overflow-hidden flex items-center gap-1">
-                                                                                {isHot && <Flame size={9} className="text-[#ff4500]" />}
-                                                                                {isStale && <Clock size={8} />}
-                                                                                {isQALocked && <span className="text-[8px]">🔒</span>}
-                                                                                {slab.heat_number || slab.id}
-                                                                            </div>
-                                                                        </div>
-                                                                    );
-                                                                })
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                        <ZoneFormation
+                                            style={zone.storage_style}
+                                            materialKey={material.type_key}
+                                            columns={zone.columns || []}
+                                            colsCount={colsCount}
+                                            isFullscreen={isFullscreen}
+                                            isEditMode={isEditMode}
+                                            editCaps={editCaps}
+                                            setEditCaps={setEditCaps}
+                                            formatStackName={formatStackName}
+                                            onOpen={openSlabDetail}
+                                            onSaveColumn={handleSaveColumn}
+                                            searchQuery={searchQuery}
+                                        />
                                     )}
 
                                 </div>
@@ -421,7 +371,7 @@ export const Dashboard: React.FC = () => {
                     <div className="w-[400px] h-full bg-[#0B0C10] border-l border-[#333] flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between px-5 py-4 border-b border-[#222] shrink-0">
                             <div>
-                                <div className="text-xs text-secondary uppercase tracking-widest mb-0.5">Slab Detail</div>
+                                <div className="text-xs text-secondary uppercase tracking-widest mb-0.5">{material.singular} Detail</div>
                                 <div className="font-black text-white font-mono text-xl">{selectedSlab.heat_number || selectedSlab.id}</div>
                             </div>
                             <button onClick={() => setSelectedSlab(null)} className="p-2 rounded hover:bg-[#222] text-secondary hover:text-white"><X size={18} /></button>
@@ -497,7 +447,7 @@ export const Dashboard: React.FC = () => {
                 <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gradient-to-r from-[#6b4c00] to-[#b87d00] inline-block" /><Clock size={9} className="inline" /> Stale</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gradient-to-r from-warning/60 to-warning inline-block" />🔒 QA Hold</span>
                 <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gradient-to-r from-danger to-[#8B0000] inline-block" />Defect</span>
-                <span className="flex items-center gap-1 ml-auto italic opacity-60">Click any slab to view detail &amp; history</span>
+                <span className="flex items-center gap-1 ml-auto italic opacity-60">Click any {material.singular.toLowerCase()} to view detail &amp; history</span>
             </div>
 
             <style dangerouslySetInnerHTML={{

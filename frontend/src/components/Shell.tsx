@@ -4,6 +4,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import ActivityLoader from './common/ActivityLoader';
 import { ProjectProvider } from '../contexts/ProjectContext';
+import { YardSelectionProvider } from '../contexts/YardSelectionContext';
 
 // The platform's Shell: sidebar on the left, header on top, the current page in the scrollable
 // content area. Identical markup and classes; the only omission is the license gate, which
@@ -13,6 +14,7 @@ export default function Shell(): React.JSX.Element {
 
   return (
     <ProjectProvider>
+      <YardSelectionProvider>
       <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
         <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
         <div className="app-shell__main">
@@ -23,6 +25,7 @@ export default function Shell(): React.JSX.Element {
         </div>
       </div>
       <ActivityLoader />
+      </YardSelectionProvider>
     </ProjectProvider>
   );
 }

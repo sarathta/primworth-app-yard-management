@@ -26,6 +26,9 @@ const MSYMS_ORIGIN = 'http://localhost:4000/api';
 const COMPAT_BASE = `${BASE_URL}/api/yard/compat`;
 
 let tenant: { projectId: string; subProjectId: string } = { projectId: '', subProjectId: '' };
+let materialTypeKey = '';
+let facilityTypeId = '';
+let yardTypeId = '';
 
 /**
  * Set by the mSYMS root from ProjectContext. Held in a module variable because the fetch
@@ -34,6 +37,21 @@ let tenant: { projectId: string; subProjectId: string } = { projectId: '', subPr
  */
 export function setSymsTenant(next: { projectId: string; subProjectId: string }): void {
   tenant = next;
+}
+
+/** The material chosen after the facility. Empty until that step is done. */
+export function setSymsMaterial(typeKey: string): void {
+  materialTypeKey = typeKey;
+}
+
+/** Facility type chosen before the material, so a new area is tied to that facility. */
+export function setSymsFacilityType(id: number | null): void {
+  facilityTypeId = id && id > 0 ? String(id) : '';
+}
+
+/** The yard open on the left (Slab Yard, Coil Yard). Empty on the yard picker. */
+export function setSymsYardType(id: number | null): void {
+  yardTypeId = id && id > 0 ? String(id) : '';
 }
 
 export function getSymsTenant(): { projectId: string; subProjectId: string } {
@@ -50,6 +68,13 @@ function rewrite(rawUrl: string): string {
   // (e.g. /slabs?quality_status=LOCKED_QA) keeps it.
   if (tenant.projectId) url.searchParams.set('projectId', tenant.projectId);
   if (tenant.subProjectId) url.searchParams.set('subProjectId', tenant.subProjectId);
+  if (materialTypeKey) url.searchParams.set('materialType', materialTypeKey);
+  if (facilityTypeId) url.searchParams.set('facilityTypeId', facilityTypeId);
+  // The open menu is the address (?yardTypeId=). Prefer that over the module variable so a
+  // screen that fetches during the first paint still names the yard the operator clicked.
+  const fromPage = new URLSearchParams(window.location.search).get('yardTypeId');
+  const yard = yardTypeId || (fromPage && Number(fromPage) > 0 ? fromPage : '');
+  if (yard) url.searchParams.set('yardTypeId', yard);
 
   return url.toString();
 }

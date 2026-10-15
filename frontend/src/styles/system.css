@@ -30,6 +30,23 @@
   font-size: 18px;
 }
 
+.sidebar__yard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+
+.sidebar__yard-head {
+  background: rgba(63, 70, 92, 0.9);
+  border-radius: 8px;
+  color: #d6def5;
+}
+
+.sidebar__yard-head .sidebar__nav-chevron {
+  color: #d6def5;
+}
+
 /* System cards & chips */
 .system-card {
   border: 1px solid var(--border);

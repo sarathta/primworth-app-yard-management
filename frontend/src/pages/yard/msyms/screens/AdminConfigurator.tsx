@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Trash2, Plus, Edit2, Check, X, ChevronDown, ChevronRight, Save, Shield, Layers, Database, ScrollText, FlaskConical, Ruler, Package, ExternalLink } from 'lucide-react';
 import { symsFetch, symsError } from '../symsApi';
 import { hasPermission } from '../../../../auth';
+import { useYardMaterial } from '../../components/MaterialGate';
+import { FORMATION, formationsFor, type StorageStyle } from '../../formations';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 type Tab = 'zones' | 'master_data' | 'erp_modules' | 'activity_log';
@@ -519,26 +521,44 @@ const ActivityLogPanel: React.FC<{ token: string | null }> = ({ token }) => {
 // ─── Main AdminConfigurator ────────────────────────────────────────────────
 export const AdminConfigurator: React.FC = () => {
     const { token } = useAuth();
+    const { material } = useYardMaterial();
+    const formationOptions = formationsFor(material.type_key);
     const [activeTab, setActiveTab] = useState<Tab>('master_data');
     const [masterSub, setMasterSub] = useState<'grades' | 'dimensions' | 'productmix' | 'rework'>('grades');
     const [zones, setZones] = useState<any[]>([]);
     const [zoneError, setZoneError] = useState('');
     const [rules, setRules] = useState<Record<string, string>>({});
     const [newZone, setNewZone] = useState({ name: '', type: 'STORAGE' });
+    const [storageStyle, setStorageStyle] = useState<StorageStyle>(formationOptions[0]);
+    const [floorCap, setFloorCap] = useState(14);
     const [gridSetup, setGridSetup] = useState({ rows: 1, cols: 1, defaultCapacity: 5 });
     const [gridConfig, setGridConfig] = useState<{ row: number, col: number, cap: number }[]>([]);
+
+    const applyFormationDefaults = (style: StorageStyle) => {
+        if (style === 'RACK') setGridSetup({ rows: 3, cols: 4, defaultCapacity: 1 });
+        else if (style === 'PYRAMID') setGridSetup({ rows: 3, cols: 4, defaultCapacity: 1 });
+        else if (style === 'FLOOR') setFloorCap(14);
+        else setGridSetup({ rows: 1, cols: 1, defaultCapacity: 5 });
+    };
 
     useEffect(() => { fetchZones(); fetchRules(); }, [activeTab]);
 
     useEffect(() => {
-        if (newZone.type === 'STORAGE') {
+        const next = formationsFor(material.type_key)[0];
+        setStorageStyle(next);
+        applyFormationDefaults(next);
+    }, [material.type_key]);
+
+    useEffect(() => {
+        if (newZone.type === 'STORAGE' && storageStyle !== 'FLOOR') {
+            const cap = storageStyle === 'STACK' ? gridSetup.defaultCapacity : 1;
             const g = [];
             for (let r = 0; r < gridSetup.rows; r++)
                 for (let c = 0; c < gridSetup.cols; c++)
-                    g.push({ row: r, col: c, cap: gridSetup.defaultCapacity });
+                    g.push({ row: r, col: c, cap });
             setGridConfig(g);
         }
-    }, [gridSetup.rows, gridSetup.cols, gridSetup.defaultCapacity, newZone.type]);
+    }, [gridSetup.rows, gridSetup.cols, gridSetup.defaultCapacity, newZone.type, storageStyle]);
 
     const fetchZones = async () => { if (!token) return; const r = await symsFetch('http://localhost:4000/api/zones', { headers: { Authorization: `Bearer ${token}` } }); if (r.ok) setZones(await r.json()); };
     const fetchRules = async () => {
@@ -557,12 +577,16 @@ export const AdminConfigurator: React.FC = () => {
     const createZone = async (e: React.FormEvent) => {
         e.preventDefault();
         setZoneError('');
-        const payload = { name: newZone.name, type: newZone.type, layout_config: newZone.type === 'STORAGE' ? { rows: gridSetup.rows, cols: gridSetup.cols } : null, columns: gridConfig.map(c => ({ row_index: c.row, col_index: c.col, capacity_limit: c.cap })) };
+        const style: StorageStyle = newZone.type === 'STORAGE' ? storageStyle : 'STACK';
+        const columns = style === 'FLOOR'
+            ? [{ row_index: 0, col_index: 0, capacity_limit: floorCap }]
+            : gridConfig.map(c => ({ row_index: c.row, col_index: c.col, capacity_limit: c.cap }));
+        const payload = { name: newZone.name, type: newZone.type, storage_style: style, layout_config: newZone.type === 'STORAGE' && style !== 'FLOOR' ? { rows: gridSetup.rows, cols: gridSetup.cols } : null, columns };
         // The response was thrown away, so a duplicate sector name or a grid the yard
         // refused looked exactly like success: the form cleared and no zone appeared.
         const r = await symsFetch('http://localhost:4000/api/zones', { method: 'POST', body: JSON.stringify(payload) });
         if (!r.ok) { setZoneError(await symsError(r, 'Could not create that sector.')); return; }
-        setNewZone({ name: '', type: 'STORAGE' }); setGridSetup({ rows: 1, cols: 1, defaultCapacity: 5 }); fetchZones();
+        setNewZone({ name: '', type: 'STORAGE' }); applyFormationDefaults(storageStyle); fetchZones();
     };
 
     // Was `user?.role !== 'Admin'` — a standalone mSYMS role name the platform never
@@ -616,7 +640,7 @@ export const AdminConfigurator: React.FC = () => {
             {activeTab === 'zones' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="bg-primary p-6 rounded-xl border border-[#333]">
-                        <SectionHeader icon={<Layers size={18} />} title="Provision Sector" sub="Define a physical zone and its column grid layout." />
+                        <SectionHeader icon={<Layers size={18} />} title="Provision Sector" sub={`A ${material.singular.toLowerCase()} area is a ${FORMATION[storageStyle].label.toLowerCase()}. ${FORMATION[storageStyle].rule}`} />
                         <form onSubmit={createZone} className="space-y-4">
                             {zoneError && <div className="text-danger text-xs bg-danger/10 border border-danger/30 rounded px-3 py-2">{zoneError}</div>}
                             <div>
@@ -627,38 +651,62 @@ export const AdminConfigurator: React.FC = () => {
                             <div>
                                 <label className="block text-[10px] uppercase tracking-widest text-secondary mb-1.5 font-semibold">Classification *</label>
                                 <select value={newZone.type} onChange={e => setNewZone({ ...newZone, type: e.target.value })} className="w-full bg-[#0B0C10] p-2 rounded text-white border border-[#333] focus:border-accent focus:outline-none">
-                                    <option value="STORAGE">Storage Sector Grid</option>
+                                    <option value="STORAGE">Storage</option>
                                     <option value="SCARFING">Scarfing Bucket</option>
                                     <option value="SHUFFLING">Shuffling Cache</option>
                                     <option value="DISPATCH">Dispatch Lane</option>
                                 </select>
                             </div>
-                            {newZone.type === 'STORAGE' ? (
+                            {newZone.type === 'STORAGE' && (
+                                <div>
+                                    <label className="block text-[10px] uppercase tracking-widest text-secondary mb-1.5 font-semibold">Formation *</label>
+                                    {formationOptions.length === 1 ? (
+                                        <div className="w-full bg-[#0B0C10] p-2 rounded text-white border border-[#333] text-sm">{FORMATION[storageStyle].label} — {FORMATION[storageStyle].materials}</div>
+                                    ) : (
+                                        <select value={storageStyle} onChange={e => { const style = e.target.value as StorageStyle; setStorageStyle(style); applyFormationDefaults(style); }} className="w-full bg-[#0B0C10] p-2 rounded text-white border border-[#333] focus:border-accent focus:outline-none">
+                                            {formationOptions.map(style => (
+                                                <option key={style} value={style}>{FORMATION[style].label} — {FORMATION[style].materials}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
+                            )}
+                            {newZone.type === 'STORAGE' && storageStyle !== 'FLOOR' ? (
                                 <div className="bg-[#0B0C10] p-4 rounded border border-[#222]">
-                                    <h4 className="text-accent uppercase text-[10px] font-bold tracking-widest mb-3">Grid Layout Blueprint</h4>
+                                    <h4 className="text-accent uppercase text-[10px] font-bold tracking-widest mb-3">{storageStyle === 'STACK' ? 'Stack Grid' : storageStyle === 'RACK' ? 'Rack Slots' : 'Pyramid Rows'}</h4>
                                     <div className="flex gap-4 mb-4">
-                                        {[['rows', 'Rows'], ['cols', 'Cols'], ['defaultCapacity', 'Default Cap']].map(([field, label]) => (
+                                        {[['rows', 'Rows'], ['cols', 'Cols'], ...(storageStyle === 'STACK' ? [['defaultCapacity', 'Depth']] : [])].map(([field, label]) => (
                                             <div key={field}>
                                                 <label className="block text-[10px] text-secondary uppercase mb-1">{label}</label>
-                                                <input type="number" min="1" max="20" value={(gridSetup as any)[field]} onChange={e => setGridSetup({ ...gridSetup, [field]: parseInt(e.target.value) })} className="w-20 bg-primary p-2 rounded text-white border border-[#333] focus:border-accent focus:outline-none" />
+                                                <input type="number" min="1" max="20" value={(gridSetup as any)[field]} onChange={e => setGridSetup({ ...gridSetup, [field]: parseInt(e.target.value) || 1 })} className="w-20 bg-primary p-2 rounded text-white border border-[#333] focus:border-accent focus:outline-none" />
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${gridSetup.cols}, minmax(0, 1fr))` }}>
-                                        {gridConfig.map((c, i) => (
-                                            <div key={i} className={`relative group flex flex-col p-2 rounded border ${c.cap === 0 ? 'bg-[#1a1111] border-danger/50' : 'bg-primary border-[#333]'}`}>
-                                                <span className={`text-[9px] mb-1 text-center font-bold ${c.cap === 0 ? 'text-danger/70' : 'text-gray-500'}`}>R{c.row + 1}-C{c.col + 1}</span>
-                                                {c.cap === 0 ? <div className="text-center font-bold text-danger text-[10px] py-1">Disabled</div> : <input type="number" value={c.cap} onChange={e => handleGridChange(c.row, c.col, e.target.value)} className="w-full text-center bg-[#0B0C10] p-1 rounded text-white border border-[#222] focus:border-accent focus:outline-none text-xs" />}
-                                                <button type="button" onClick={() => handleGridChange(c.row, c.col, c.cap === 0 ? String(gridSetup.defaultCapacity) : '0')} className={`absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity ${c.cap === 0 ? 'text-success' : 'text-danger'}`}>
-                                                    {c.cap === 0 ? <Plus size={12} /> : <Trash2 size={12} />}
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    {storageStyle === 'STACK' && (
+                                        <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${gridSetup.cols}, minmax(0, 1fr))` }}>
+                                            {gridConfig.map((c, i) => (
+                                                <div key={i} className={`relative group flex flex-col p-2 rounded border ${c.cap === 0 ? 'bg-[#1a1111] border-danger/50' : 'bg-primary border-[#333]'}`}>
+                                                    <span className={`text-[9px] mb-1 text-center font-bold ${c.cap === 0 ? 'text-danger/70' : 'text-gray-500'}`}>R{c.row + 1}-C{c.col + 1}</span>
+                                                    {c.cap === 0 ? <div className="text-center font-bold text-danger text-[10px] py-1">Disabled</div> : <input type="number" value={c.cap} onChange={e => handleGridChange(c.row, c.col, e.target.value)} className="w-full text-center bg-[#0B0C10] p-1 rounded text-white border border-[#222] focus:border-accent focus:outline-none text-xs" />}
+                                                    <button type="button" onClick={() => handleGridChange(c.row, c.col, c.cap === 0 ? String(gridSetup.defaultCapacity) : '0')} className={`absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity ${c.cap === 0 ? 'text-success' : 'text-danger'}`}>
+                                                        {c.cap === 0 ? <Plus size={12} /> : <Trash2 size={12} />}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {storageStyle !== 'STACK' && (
+                                        <p className="text-[10px] uppercase tracking-widest text-secondary">{gridSetup.rows * gridSetup.cols} addressed {storageStyle === 'RACK' ? 'slots, one item each.' : 'places. The top row stays free.'}</p>
+                                    )}
+                                </div>
+                            ) : newZone.type === 'STORAGE' ? (
+                                <div>
+                                    <label className="block text-[10px] uppercase tracking-widest text-secondary mb-1.5 font-semibold">Spaces on the floor</label>
+                                    <input required type="number" min="1" max="1000" value={floorCap} onChange={e => setFloorCap(parseInt(e.target.value) || 1)} className="w-full bg-[#0B0C10] p-2 rounded text-white border border-[#333] focus:border-accent focus:outline-none" />
                                 </div>
                             ) : (
                                 <div>
-                                    <label className="block text-[10px] uppercase tracking-widest text-secondary mb-1.5 font-semibold">Bucket Capacity (Slabs)</label>
+                                    <label className="block text-[10px] uppercase tracking-widest text-secondary mb-1.5 font-semibold">Bucket Capacity ({material.plural})</label>
                                     <input required type="number" min="1" value={gridConfig.length ? gridConfig[0].cap : 10} onChange={e => setGridConfig([{ row: 0, col: 0, cap: parseInt(e.target.value) }])} className="w-full bg-[#0B0C10] p-2 rounded text-white border border-[#333] focus:border-accent focus:outline-none" />
                                 </div>
                             )}
@@ -673,7 +721,7 @@ export const AdminConfigurator: React.FC = () => {
                                 return (
                                     <div key={z.id} className="bg-[#0B0C10] p-4 rounded-lg border border-[#222]">
                                         <div className="flex justify-between items-center">
-                                            <div><div className="font-bold text-white uppercase text-sm">{z.name}</div><div className="text-xs text-accent mt-0.5 tracking-widest uppercase">{z.type}</div></div>
+                                            <div><div className="font-bold text-white uppercase text-sm">{z.name}</div><div className="text-xs text-accent mt-0.5 tracking-widest uppercase">{z.type}{z.storage_style ? ` · ${FORMATION[z.storage_style as StorageStyle]?.label || z.storage_style}` : ''}</div></div>
                                             <div className="text-right"><div className="text-[10px] text-secondary uppercase">Capacity</div><div className="font-mono text-white text-lg font-bold">{totalCap}</div></div>
                                         </div>
                                         {z.layout_config && <div className="text-[10px] text-secondary border-t border-[#1a1a1a] pt-2 mt-2">{z.layout_config.rows} × {z.layout_config.cols} grid — {z.columns?.length || 0} columns</div>}

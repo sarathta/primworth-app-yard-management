@@ -161,6 +161,28 @@
 .msyms-root .msyms-linkbar__dot--on  { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
 .msyms-root .msyms-linkbar__dot--off { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16); }
 
+.msyms-root .msyms-linkbar__material {
+  margin-left: auto;
+  color: #fff;
+}
+
+.msyms-root .msyms-linkbar__change {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.msyms-root .msyms-linkbar__change:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 /* mSYMS's screens were written expecting to sit inside its own <main>, which
    supplied this padding. */
 .msyms-root .msyms-screen {

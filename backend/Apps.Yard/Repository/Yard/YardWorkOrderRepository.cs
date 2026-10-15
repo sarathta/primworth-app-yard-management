@@ -178,10 +178,15 @@ namespace Primworth_API.Repository.Yard
             return orders;
         }
 
-        public async Task<IEnumerable<YardMovement>> GetActivityFeedAsync(string schema, int limit)
+        public async Task<IEnumerable<YardMovement>> GetActivityFeedAsync(string schema, int limit, string? materialType = null, long? yardTypeId = null)
         {
             using var connection = _context.CreateConnection();
-            return await connection.QueryAsync<YardMovement>(Sql(YardWorkOrderQueries.GetActivityFeed, schema), new { limit = limit is < 1 or > 500 ? 50 : limit });
+            return await connection.QueryAsync<YardMovement>(Sql(YardWorkOrderQueries.GetActivityFeed, schema), new
+            {
+                limit = limit is < 1 or > 500 ? 50 : limit,
+                type_key = string.IsNullOrWhiteSpace(materialType) ? null : materialType.Trim(),
+                yard_type_id = yardTypeId is > 0 ? yardTypeId : null,
+            });
         }
 
         public async Task<IEnumerable<YardMovement>> GetItemHistoryAsync(string schema, long itemId)

@@ -40,6 +40,7 @@ namespace Primworth_API.Models.Yard
         public string? quality_status { get; set; }
         public string? grade_code { get; set; }
         public string? temperature_state { get; set; }
+        public string? type_key { get; set; }
     }
 
     public class YardCompatOverview

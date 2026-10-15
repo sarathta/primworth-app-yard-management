@@ -59,9 +59,9 @@ namespace Platform.DevHost
                 if (first.project_name != null)
                 {
                     var schema = DevSchemaNames.Project(first.project_id, first.project_name);
-                    facilityTypes = (await connection.QueryAsync<(long facility_type_id, string facility_type_name)>(
-                        $"SELECT facility_type_id, facility_type_name FROM \"{schema}\".gm_facility_type ORDER BY facility_type_id"))
-                        .Select(f => new { f.facility_type_id, f.facility_type_name }).ToList();
+                    facilityTypes = (await connection.QueryAsync<(long facility_type_id, string facility_type_name, string? description)>(
+                        $"SELECT facility_type_id, facility_type_name, description FROM \"{schema}\".gm_facility_type ORDER BY facility_type_id"))
+                        .Select(f => new { f.facility_type_id, f.facility_type_name, f.description }).ToList();
                 }
                 var data = new
                 {
@@ -82,8 +82,13 @@ namespace Platform.DevHost
                 foreach (var (pid, pname) in projects)
                 {
                     var schema = DevSchemaNames.Project(pid, pname);
-                    var subs = (await connection.QueryAsync<(long sub_project_id, string sub_project_name)>(
-                        $"SELECT sub_project_id, sub_project_name FROM \"{schema}\".sys_sp_sub_project ORDER BY sub_project_id")).ToList();
+                    var subs = (await connection.QueryAsync<(long sub_project_id, string sub_project_name, long? facility_type_id, string? facility_type_name)>(
+                        $"""
+                        SELECT s.sub_project_id, s.sub_project_name, s.facility_type_id, f.facility_type_name
+                        FROM "{schema}".sys_sp_sub_project s
+                        LEFT JOIN "{schema}".gm_facility_type f ON f.facility_type_id = s.facility_type_id
+                        ORDER BY s.sub_project_id
+                        """)).ToList();
                     result.Add(new
                     {
                         project_id = pid,
@@ -96,6 +101,8 @@ namespace Platform.DevHost
                         {
                             s.sub_project_id,
                             s.sub_project_name,
+                            s.facility_type_id,
+                            s.facility_type_name,
                             schema = DevSchemaNames.SubProject(pid, pname, s.sub_project_id, s.sub_project_name),
                         }).ToList(),
                     });

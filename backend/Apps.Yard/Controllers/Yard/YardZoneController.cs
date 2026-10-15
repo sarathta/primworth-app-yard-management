@@ -29,10 +29,26 @@ namespace Primworth_API.Controllers.Yard
         public Task<IActionResult> GetPositions(long zoneId, [FromQuery] long? projectId, [FromQuery] long? subProjectId)
             => Run(async schema => Ok(Envelope(await _zones.GetPositionsAsync(schema, zoneId), "Positions fetched.")), projectId, subProjectId);
 
+        /// <summary>GET api/yard/zones/facility-types — facility types in this yard's schema.</summary>
+        [HttpGet("facility-types")]
+        public Task<IActionResult> GetFacilityTypes([FromQuery] long? projectId, [FromQuery] long? subProjectId)
+            => Run(async schema => Ok(Envelope(await _zones.GetFacilityTypesAsync(schema), "Facility types fetched.")), projectId, subProjectId);
+
+        /// <summary>GET api/yard/zones/yard-types — Slab Yard, Coil Yard, and the rest of sp_yard_type.</summary>
+        [HttpGet("yard-types")]
+        public Task<IActionResult> GetYardTypes([FromQuery] long? projectId, [FromQuery] long? subProjectId)
+            => Run(async schema => Ok(Envelope(await _zones.GetYardTypesAsync(schema), "Yards fetched.")), projectId, subProjectId);
+
         /// <summary>GET api/yard/zones/material-types — the words and fields of each material this facility stores.</summary>
         [HttpGet("material-types")]
-        public Task<IActionResult> GetMaterialTypes([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] bool includeInactive = false)
-            => Run(async schema => Ok(Envelope(await _zones.GetMaterialTypesAsync(schema, includeInactive), "Material types fetched.")), projectId, subProjectId);
+        public Task<IActionResult> GetMaterialTypes([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] bool includeInactive = false, [FromQuery] long? facilityTypeId = null)
+            => Run(async schema =>
+            {
+                var typeId = facilityTypeId is > 0
+                    ? facilityTypeId
+                    : await Schema.FacilityTypeIdAsync(Schema.ProjectIdOrHeader(projectId), Schema.SubProjectIdOrHeader(subProjectId));
+                return Ok(Envelope(await _zones.GetMaterialTypesAsync(schema, includeInactive, typeId), "Material types fetched."));
+            }, projectId, subProjectId);
 
         /// <summary>GET api/yard/zones/config — feature flags and tuning values.</summary>
         [HttpGet("config")]

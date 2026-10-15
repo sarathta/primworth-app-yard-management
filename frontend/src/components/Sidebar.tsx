@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { getUserData, hasPermission, logout } from '../auth';
 import { getOemAndFacilityTypes } from '../services/All_Api_services';
-import { apps } from '../apps';
+import { apps, type AppNavItem } from '../apps';
+import { useYardSelection, type SelectedYard } from '../contexts/YardSelectionContext';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -18,6 +19,8 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps): React.JSX.Element {
   const location = useLocation();
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
+  const { selected: selectedYards } = useYardSelection();
+  const yardTypeId = new URLSearchParams(location.search).get('yardTypeId');
 
   // Profile dropdown state and logic
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -50,6 +53,15 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps):
 
   const isOpen = (key: string, onRoute: boolean) => openKeys[key] ?? onRoute;
 
+  const yardOpen = (key: string) => openKeys[key] ?? true;
+
+  const childActive = (item: AppNavItem, yard: SelectedYard) => {
+    const path = location.pathname.replace(/\/+$/, '') || '/';
+    const route = item.route_path.replace(/\/+$/, '') || '/';
+    const onPath = route === '/yard' ? path === '/yard' : path === route || path.startsWith(`${route}/`);
+    return onPath && yardTypeId === String(yard.yard_type_id);
+  };
+
   return (
     <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
       <div className="sidebar__brand">
@@ -71,24 +83,80 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps):
 
       <nav className="sidebar__nav">
         {apps.filter(app => hasPermission(app.permissionCode)).map(app => {
+          if (app.key === 'yard_management' && selectedYards.length > 0) {
+            const items = app.frontend.nav.filter(item => hasPermission(item.permission_code));
+            return selectedYards.map(yard => {
+              const key = `yard-${yard.yard_type_id}`;
+              const expanded = yardOpen(key);
+              return (
+                <div className="sidebar__yard" key={key}>
+                  <button
+                    type="button"
+                    className="sidebar__nav-item sidebar__nav-group sidebar__yard-head"
+                    onClick={() => setOpenKeys(k => ({ ...k, [key]: !expanded }))}
+                    aria-label={`Toggle ${yard.yard_type_name} menu`}
+                    aria-expanded={expanded}
+                  >
+                    <span className="material-symbols-outlined">my_location</span>
+                    <span className="sidebar__nav-label">{yard.yard_type_name}</span>
+                    <span className="material-symbols-outlined sidebar__nav-chevron">
+                      {expanded ? 'expand_less' : 'expand_more'}
+                    </span>
+                  </button>
+                  {expanded && (
+                    <div className="sidebar__subnav">
+                      {items.map(item => {
+                        const active = childActive(item, yard);
+                        return (
+                          <Link
+                            key={`${yard.yard_type_id}-${item.route_path}`}
+                            to={`${item.route_path}?yardTypeId=${yard.yard_type_id}`}
+                            aria-current={active ? 'page' : undefined}
+                            className={'sidebar__nav-item sidebar__nav-item--child' + (active ? ' sidebar__nav-item--active' : '')}
+                          >
+                            <span className="material-symbols-outlined">{item.icon}</span>
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          }
+
           const onRoute = location.pathname.startsWith(app.frontend.routeBase);
           const expanded = isOpen(app.key, onRoute);
+          const waitingForYards = app.key === 'yard_management' && selectedYards.length === 0;
           return (
             <Fragment key={app.key}>
-              <button
-                type="button"
-                className={'sidebar__nav-item sidebar__nav-group' + (onRoute ? ' sidebar__nav-item--active' : '')}
-                onClick={() => setOpenKeys(k => ({ ...k, [app.key]: !expanded }))}
-                aria-label={`Toggle ${app.name} menu`}
-              >
-                <span className="material-symbols-outlined">{app.icon}</span>
-                <span className="sidebar__nav-label">{app.name}</span>
-                <span className="material-symbols-outlined sidebar__nav-chevron">
-                  {expanded ? 'expand_less' : 'expand_more'}
-                </span>
-              </button>
+              {waitingForYards ? (
+                <NavLink
+                  to="/yard"
+                  className={({ isActive }) =>
+                    'sidebar__nav-item sidebar__nav-group' + (isActive ? ' sidebar__nav-item--active' : '')
+                  }
+                >
+                  <span className="material-symbols-outlined">{app.icon}</span>
+                  <span className="sidebar__nav-label">{app.name}</span>
+                </NavLink>
+              ) : (
+                <button
+                  type="button"
+                  className={'sidebar__nav-item sidebar__nav-group' + (onRoute ? ' sidebar__nav-item--active' : '')}
+                  onClick={() => setOpenKeys(k => ({ ...k, [app.key]: !expanded }))}
+                  aria-label={`Toggle ${app.name} menu`}
+                >
+                  <span className="material-symbols-outlined">{app.icon}</span>
+                  <span className="sidebar__nav-label">{app.name}</span>
+                  <span className="material-symbols-outlined sidebar__nav-chevron">
+                    {expanded ? 'expand_less' : 'expand_more'}
+                  </span>
+                </button>
+              )}
 
-              {expanded && (
+              {!waitingForYards && expanded && (
                 <div className="sidebar__subnav">
                   {app.frontend.nav.filter(item => hasPermission(item.permission_code)).map(item => (
                     <NavLink

@@ -18,14 +18,18 @@ export default function SelectSubProjectNotice({ action = 'open' }: { action?: s
       <span className="material-symbols-outlined">view_in_ar</span>
       <h3>Select a facility</h3>
       <p style={{ maxWidth: '520px' }}>
-        Yard Management runs per facility, so it needs a sub project to {action}.
+        Choose a facility to {action}. The next step is the material that facility stores.
       </p>
       {subProjects.length > 0 ? (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', margin: '8px 0' }}>
           {subProjects.map(sp => (
             <button key={sp.id} type="button" className="btn btn--primary"
-                    onClick={() => setSubProject(String(sp.id), sp.name, 'Yard Management')}>
-              {sp.name}
+                    onClick={() => setSubProject(String(sp.id), sp.name, 'Yard Management')}
+                    style={{ flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+              <span>{sp.name}</span>
+              {sp.facility_type_name && (
+                <span style={{ fontWeight: 500, opacity: 0.85 }}>{sp.facility_type_name}</span>
+              )}
             </button>
           ))}
         </div>

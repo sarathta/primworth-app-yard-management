@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_material_type (
     position_label   varchar(50)  NOT NULL DEFAULT 'R{row}-C{col}',
     attribute_defs   jsonb        NOT NULL DEFAULT '[]'::jsonb,
     rule_set_key     varchar(64),
+    facility_type_id bigint,
     is_active        boolean   NOT NULL DEFAULT TRUE,
     is_deleted       boolean   NOT NULL DEFAULT FALSE,
     created_by       bigint,
@@ -26,12 +27,28 @@ CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_material_type (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_material_type_type_key
     ON "{schema}".sp_yard_material_type (LOWER(type_key)) WHERE is_deleted = FALSE;
 
+-- CreateYardType
+CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_type (
+    yard_type_id   bigint GENERATED ALWAYS AS IDENTITY,
+    yard_type_name varchar(100) NOT NULL,
+    description    text,
+    is_active      boolean   NOT NULL DEFAULT TRUE,
+    is_deleted     boolean   NOT NULL DEFAULT FALSE,
+    created_on     timestamp NOT NULL DEFAULT NOW(),
+    updated_by     bigint,
+    updated_on     timestamp,
+    CONSTRAINT pk_sp_yard_type PRIMARY KEY (yard_type_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_type_yard_type_name
+    ON "{schema}".sp_yard_type (LOWER(yard_type_name)) WHERE is_deleted = FALSE;
+
 -- CreateZone
 CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_zone (
     zone_id       bigint GENERATED ALWAYS AS IDENTITY,
     zone_name     varchar(100) NOT NULL,
     zone_purpose  varchar(20)  NOT NULL DEFAULT 'STORAGE',
     storage_style varchar(10)  NOT NULL DEFAULT 'STACK',
+    yard_type_id  bigint,
     is_active     boolean   NOT NULL DEFAULT TRUE,
     is_deleted    boolean   NOT NULL DEFAULT FALSE,
     created_by    bigint,
@@ -46,6 +63,25 @@ CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_zone (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_zone_zone_name
     ON "{schema}".sp_yard_zone (LOWER(zone_name)) WHERE is_deleted = FALSE;
+ALTER TABLE "{schema}".sp_yard_zone ADD COLUMN IF NOT EXISTS yard_type_id bigint;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint c
+        JOIN pg_class t ON t.oid = c.conrelid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY (c.conkey)
+        WHERE n.nspname = '{schema}'
+          AND t.relname = 'sp_yard_zone'
+          AND a.attname = 'yard_type_id'
+          AND c.contype = 'f'
+    ) THEN
+        ALTER TABLE "{schema}".sp_yard_zone
+            ADD CONSTRAINT fk_sp_yard_zone_yard_type_id
+            FOREIGN KEY (yard_type_id) REFERENCES "{schema}".sp_yard_type (yard_type_id);
+    END IF;
+END $$;
 
 -- CreateZoneMaterialType
 CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_zone_material_type (

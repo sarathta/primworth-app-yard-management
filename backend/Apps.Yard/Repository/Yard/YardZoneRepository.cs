@@ -13,10 +13,26 @@ namespace Primworth_API.Repository.Yard
 
         public YardZoneRepository(DapperContext context) => _context = context;
 
-        public async Task<IEnumerable<YardMaterialType>> GetMaterialTypesAsync(string schema, bool includeInactive)
+        public async Task<IEnumerable<YardFacilityType>> GetFacilityTypesAsync(string schema)
         {
             using var connection = _context.CreateConnection();
-            return await connection.QueryAsync<YardMaterialType>(Sql(YardZoneQueries.GetMaterialTypes, schema), new { include_inactive = includeInactive });
+            return await connection.QueryAsync<YardFacilityType>(Sql(YardZoneQueries.GetFacilityTypes, schema));
+        }
+
+        public async Task<IEnumerable<YardType>> GetYardTypesAsync(string schema)
+        {
+            using var connection = _context.CreateConnection();
+            return await connection.QueryAsync<YardType>(Sql(YardZoneQueries.GetYardTypes, schema));
+        }
+
+        public async Task<IEnumerable<YardMaterialType>> GetMaterialTypesAsync(string schema, bool includeInactive, long? facilityTypeId = null)
+        {
+            using var connection = _context.CreateConnection();
+            return await connection.QueryAsync<YardMaterialType>(Sql(YardZoneQueries.GetMaterialTypes, schema), new
+            {
+                include_inactive = includeInactive,
+                facility_type_id = facilityTypeId is > 0 ? facilityTypeId : null,
+            });
         }
 
         public async Task<IEnumerable<YardZone>> GetZonesAsync(string schema)
@@ -60,6 +76,7 @@ namespace Primworth_API.Repository.Yard
                     zone_name = input.zone_name.Trim(),
                     zone_purpose = input.zone_purpose.Trim().ToUpperInvariant(),
                     storage_style = style,
+                    yard_type_id = input.yard_type_id is > 0 ? input.yard_type_id : null,
                     user_id = User(userId),
                 }, tx));
             }

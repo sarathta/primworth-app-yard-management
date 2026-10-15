@@ -17,21 +17,62 @@ namespace Primworth_API.Queries.Yard
                  WHEN NOW() - (i.attributes->>'cast_time')::timestamp < make_interval(mins => @warm) THEN 'WARM'
                  ELSE 'COLD' END";
 
+        /// <summary>Null @type_key means every material. Used by queries that already join mt.</summary>
+        private const string MatchesType = "(@type_key IS NULL OR LOWER(mt.type_key) = LOWER(@type_key))";
+
+        /// <summary>Areas that accept @type_key. {zone} is the zone id column (z.zone_id, p.zone_id).</summary>
+        private const string ZoneAcceptsType = @"
+            (@type_key IS NULL OR EXISTS (
+                SELECT 1
+                FROM ""{schema}"".sp_yard_zone_material_type zm
+                JOIN ""{schema}"".sp_yard_material_type mt ON mt.material_type_id = zm.material_type_id
+                WHERE zm.zone_id = {zone}
+                  AND mt.is_deleted = FALSE
+                  AND LOWER(mt.type_key) = LOWER(@type_key)))";
+
+        /// <summary>
+        /// The zone alias is the yard open on the left. Null @yard_type_id means no yard was
+        /// chosen. A chosen yard never includes another yard's areas, and never includes an
+        /// area that has not been assigned to a yard.
+        /// </summary>
+        private static string InYard(string alias) =>
+            "(@yard_type_id IS NULL OR " + alias + ".yard_type_id = @yard_type_id)";
+
+        /// <summary>Same rule as InYard, for a row that only has a zone id.</summary>
+        private static string ZoneIdInYard(string zoneIdExpr) =>
+            "(@yard_type_id IS NULL OR EXISTS (" +
+            "SELECT 1 FROM \"{schema}\".sp_yard_zone yz WHERE yz.zone_id = " + zoneIdExpr +
+            " AND yz.is_deleted = FALSE AND yz.yard_type_id = @yard_type_id))";
+
         // ── Yard overview: three flat queries, assembled in memory ───────────────
-        public const string OverviewZones = @"
-            SELECT zone_id, zone_name, zone_purpose, storage_style, is_active
-            FROM ""{schema}"".sp_yard_zone WHERE is_deleted = FALSE
-            ORDER BY CASE zone_purpose WHEN 'STORAGE' THEN 0 WHEN 'REWORK' THEN 1 WHEN 'DISPATCH' THEN 2 ELSE 3 END, zone_name;";
+        public static readonly string OverviewZones = @"
+            SELECT z.zone_id, z.zone_name, z.zone_purpose, z.storage_style, z.is_active
+            FROM ""{schema}"".sp_yard_zone z
+            WHERE z.is_deleted = FALSE
+              AND " + ZoneAcceptsType.Replace("{zone}", "z.zone_id") + @"
+              AND " + InYard("z") + @"
+            ORDER BY CASE z.zone_purpose WHEN 'STORAGE' THEN 0 WHEN 'REWORK' THEN 1 WHEN 'DISPATCH' THEN 2 ELSE 3 END, z.zone_name;";
 
-        public const string OverviewPositions = @"
-            SELECT position_id, zone_id, row_index, col_index, capacity_limit
-            FROM ""{schema}"".sp_yard_position WHERE is_deleted = FALSE ORDER BY row_index, col_index;";
+        public static readonly string OverviewPositions = @"
+            SELECT p.position_id, p.zone_id, p.row_index, p.col_index, p.capacity_limit
+            FROM ""{schema}"".sp_yard_position p
+            WHERE p.is_deleted = FALSE
+              AND " + ZoneAcceptsType.Replace("{zone}", "p.zone_id") + @"
+              AND " + ZoneIdInYard("p.zone_id") + @"
+            ORDER BY p.row_index, p.col_index;";
 
-        public const string OverviewItems = @"
+        public static readonly string OverviewItems = @"
             SELECT i.item_id, i.position_id, i.item_code, i.heat_number, i.stack_index, i.item_status, i.quality_status,
-                   i.grade_code, " + Temperature + @" AS temperature_state
+                   i.grade_code, " + Temperature + @" AS temperature_state, mt.type_key
             FROM ""{schema}"".sp_yard_item i
+            LEFT JOIN ""{schema}"".sp_yard_material_type mt ON mt.material_type_id = i.material_type_id AND mt.is_deleted = FALSE
             WHERE i.is_deleted = FALSE AND i.position_id IS NOT NULL AND i.is_virtual = FALSE
+              AND (@type_key IS NULL OR EXISTS (
+                    SELECT 1 FROM ""{schema}"".sp_yard_material_type mt
+                    WHERE mt.material_type_id = i.material_type_id
+                      AND mt.is_deleted = FALSE
+                      AND LOWER(mt.type_key) = LOWER(@type_key)))
+              AND " + ZoneIdInYard("i.zone_id") + @"
             ORDER BY i.position_id, i.stack_index;";
 
         // ── Items in the full compat shape ───────────────────────────────────────
@@ -46,9 +87,11 @@ namespace Primworth_API.Queries.Yard
             LEFT JOIN ""{schema}"".sp_yard_zone     z  ON z.zone_id = i.zone_id
             LEFT JOIN ""{schema}"".sp_yard_position p  ON p.position_id = i.position_id";
 
-        public const string GetItems = SelectItem + @"
+        public static readonly string GetItems = SelectItem + @"
             WHERE i.is_deleted = FALSE AND i.is_virtual = FALSE
               AND (@quality_status IS NULL OR i.quality_status = @quality_status)
+              AND " + MatchesType + @"
+              AND " + InYard("z") + @"
             ORDER BY i.position_id NULLS FIRST, i.stack_index DESC, i.item_id
             LIMIT 500;";
 
@@ -56,15 +99,19 @@ namespace Primworth_API.Queries.Yard
             WHERE i.item_id = @item_id AND i.is_deleted = FALSE;";
 
         /// <summary>Items ready to leave: located, not held, not already gone.</summary>
-        public const string GetDispatchCandidates = SelectItem + @"
+        public static readonly string GetDispatchCandidates = SelectItem + @"
             WHERE i.is_deleted = FALSE AND i.is_virtual = FALSE AND i.position_id IS NOT NULL
               AND i.item_status NOT IN ('DISPATCHED', 'SCRAPPED') AND i.quality_status <> 'LOCKED_QA'
+              AND " + MatchesType + @"
+              AND " + InYard("z") + @"
             ORDER BY i.stack_index DESC, i.item_code;";
 
         /// <summary>The mill campaign: hottest first, then oldest cast, so the heat is spent before it is lost.</summary>
-        public const string GetMillCampaign = SelectItem + @"
+        public static readonly string GetMillCampaign = SelectItem + @"
             WHERE i.is_deleted = FALSE AND i.is_virtual = FALSE AND i.position_id IS NOT NULL
               AND i.item_status NOT IN ('DISPATCHED', 'SCRAPPED') AND i.quality_status <> 'LOCKED_QA'
+              AND " + MatchesType + @"
+              AND " + InYard("z") + @"
             ORDER BY CASE " + Temperature + @" WHEN 'HOT' THEN 0 WHEN 'WARM' THEN 1 ELSE 2 END,
                      NULLIF(i.attributes->>'cast_time', '')::timestamp NULLS LAST, i.item_id
             LIMIT @limit;";
@@ -82,9 +129,18 @@ namespace Primworth_API.Queries.Yard
             JOIN ""{schema}"".sp_yard_item i ON i.item_id = w.item_id
             LEFT JOIN ""{schema}"".sp_yard_zone     sz ON sz.zone_id = w.source_zone_id
             LEFT JOIN ""{schema}"".sp_yard_zone     dz ON dz.zone_id = w.destination_zone_id
+            LEFT JOIN ""{schema}"".sp_yard_zone     iz ON iz.zone_id = i.zone_id
             LEFT JOIN ""{schema}"".sp_yard_position sp ON sp.position_id = w.source_position_id
             LEFT JOIN ""{schema}"".sp_yard_position dp ON dp.position_id = w.destination_position_id
             WHERE w.is_deleted = FALSE AND w.order_status IN ('PENDING', 'IN_PROGRESS', 'FLAGGED')
+              AND (@type_key IS NULL OR EXISTS (
+                    SELECT 1 FROM ""{schema}"".sp_yard_material_type mt
+                    WHERE mt.material_type_id = i.material_type_id
+                      AND mt.is_deleted = FALSE
+                      AND LOWER(mt.type_key) = LOWER(@type_key)))
+              AND (@yard_type_id IS NULL
+                   OR sz.yard_type_id = @yard_type_id
+                   OR (w.source_zone_id IS NULL AND iz.yard_type_id = @yard_type_id))
             ORDER BY CASE w.order_type WHEN 'DIGGING' THEN 0 WHEN 'DISPATCH' THEN 1 ELSE 2 END, w.created_on;";
     }
 }

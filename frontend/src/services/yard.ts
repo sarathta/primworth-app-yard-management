@@ -6,7 +6,7 @@
 import { BASE_URL, authGet, authPost, authPut, authDelete } from '../api';
 import type { ApiResponse } from '../types';
 import type {
-  AllocationResult, Item, ItemInput, MaterialType, Movement, Position, WorkOrder, Zone, ZoneInput,
+  AllocationResult, Item, ItemInput, MaterialType, Movement, Position, WorkOrder, YardTypeOption, Zone, ZoneInput,
 } from '../types/yard';
 
 const BASE = `${BASE_URL}/api/yard`;
@@ -27,8 +27,15 @@ function messageFrom(err: unknown): string {
 }
 
 // ── Layout and configuration ──────────────────────────────────────────────────
-export const getMaterialTypes = (includeInactive = false) =>
-  attempt(() => authGet<ApiResponse<MaterialType[]>>(`${BASE}/zones/material-types`, { includeInactive }));
+export const getFacilityTypes = () =>
+  attempt(() => authGet<ApiResponse<Array<{ facility_type_id: number; facility_type_name: string; description?: string | null }>>>(`${BASE}/zones/facility-types`));
+export const getYardTypes = () =>
+  attempt(() => authGet<ApiResponse<YardTypeOption[]>>(`${BASE}/zones/yard-types`));
+export const getMaterialTypes = (includeInactive = false, facilityTypeId?: number | null) =>
+  attempt(() => authGet<ApiResponse<MaterialType[]>>(`${BASE}/zones/material-types`, {
+    includeInactive,
+    facilityTypeId: facilityTypeId && facilityTypeId > 0 ? facilityTypeId : undefined,
+  }));
 export const getZones = () => attempt(() => authGet<ApiResponse<Zone[]>>(`${BASE}/zones`));
 export const getPositions = (zoneId: number) => attempt(() => authGet<ApiResponse<Position[]>>(`${BASE}/zones/${zoneId}/positions`));
 export const createZone = (input: ZoneInput) => attempt(() => authPost<ApiResponse<number>>(`${BASE}/zones`, input));

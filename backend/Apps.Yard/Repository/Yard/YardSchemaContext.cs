@@ -33,6 +33,9 @@ namespace Primworth_API.Repository.Yard
 
         /// <summary>sys_users.id from the bearer token; 0 when unauthenticated.</summary>
         long CurrentUserId();
+
+        /// <summary>The facility type of the selected sub-project, from sys_sp_sub_project.</summary>
+        Task<long?> FacilityTypeIdAsync(long? projectId, long? subProjectId);
     }
 
     public class YardSchemaContext : IYardSchemaContext
@@ -80,6 +83,19 @@ namespace Primworth_API.Repository.Yard
             => await ResolveAsync(projectId, subProjectId)
                ?? throw new YardNotEnabledException(
                    "Yard Management is not enabled for this facility. Select a sub project and map the application to it first.");
+
+        public async Task<long?> FacilityTypeIdAsync(long? projectId, long? subProjectId)
+        {
+            if (projectId is not > 0 || subProjectId is not > 0) return null;
+
+            var projectSchema = await _schemaResolver.ResolveSchema(projectId, null);
+            if (string.IsNullOrWhiteSpace(projectSchema)) return null;
+
+            using var connection = _context.CreateConnection();
+            return await connection.ExecuteScalarAsync<long?>(
+                $"SELECT facility_type_id FROM \"{projectSchema}\".sys_sp_sub_project WHERE sub_project_id = @id",
+                new { id = subProjectId });
+        }
 
         public long CurrentUserId()
         {

@@ -29,7 +29,13 @@ interface DevProject {
   customer_name?: string;
   oem_name?: string;
   application_name?: string;
-  sub_projects: Array<{ sub_project_id: number; sub_project_name: string; schema: string }>;
+  sub_projects: Array<{
+    sub_project_id: number;
+    sub_project_name: string;
+    schema: string;
+    facility_type_id?: number | null;
+    facility_type_name?: string | null;
+  }>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -67,6 +73,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       projectId: p?.project_id,
       projectName: p?.project_name,
       application_name: p?.application_name,
+      facility_type_id: s.facility_type_id,
+      facility_type_name: s.facility_type_name,
     }));
   }, [raw, projectId]);
 

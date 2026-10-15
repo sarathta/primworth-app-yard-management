@@ -33,8 +33,8 @@ namespace Primworth_API.Controllers.Yard
         /// <summary>GET compat/workorders: the operator worklist, Prisma-nested.</summary>
         [RequiresPermission(Dashboard, Operator, Mill, Admin)]
         [HttpGet]
-        public Task<IActionResult> GetWorkOrders([FromQuery] long? projectId, [FromQuery] long? subProjectId)
-            => RunRead(async schema => Ok((await _compat.GetWorkOrdersAsync(schema)).Select(r => new
+        public Task<IActionResult> GetWorkOrders([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromQuery] long? yardTypeId)
+            => RunRead(async schema => Ok((await _compat.GetWorkOrdersAsync(schema, materialType, yardTypeId)).Select(r => new
             {
                 id = r.work_order_id.ToString(),
                 type = r.order_type,
@@ -78,8 +78,8 @@ namespace Primworth_API.Controllers.Yard
 
         [RequiresPermission(Dashboard, Operator, Quality, Mill, Admin)]
         [HttpGet("activity-feed")]
-        public Task<IActionResult> ActivityFeed([FromQuery] long? projectId, [FromQuery] long? subProjectId)
-            => RunRead(async schema => Ok((await _orders.GetActivityFeedAsync(schema, 50)).Select(MovementShape)), projectId, subProjectId, Array.Empty<object>());
+        public Task<IActionResult> ActivityFeed([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromQuery] long? yardTypeId)
+            => RunRead(async schema => Ok((await _orders.GetActivityFeedAsync(schema, 50, materialType, yardTypeId)).Select(MovementShape)), projectId, subProjectId, Array.Empty<object>());
 
         [RequiresPermission(Dashboard, Operator, Quality, Mill, Admin)]
         [HttpGet("slab/{slabId:long}/history")]
@@ -126,8 +126,8 @@ namespace Primworth_API.Controllers.Yard
         /// <summary>GET compat/workorders/hsm-schedule: the rolling campaign, hottest first.</summary>
         [RequiresPermission(Mill, Admin)]
         [HttpGet("hsm-schedule")]
-        public Task<IActionResult> MillSchedule([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] int limit = 100)
-            => RunRead(async schema => Ok(new { campaign = (await _compat.GetMillCampaignAsync(schema, limit)).Select(FullSlabShape) }),
+        public Task<IActionResult> MillSchedule([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] int limit = 100, [FromQuery] string? materialType = null, [FromQuery] long? yardTypeId = null)
+            => RunRead(async schema => Ok(new { campaign = (await _compat.GetMillCampaignAsync(schema, limit, materialType, yardTypeId)).Select(FullSlabShape) }),
                 projectId, subProjectId, new { campaign = Array.Empty<object>() });
 
         /// <summary>

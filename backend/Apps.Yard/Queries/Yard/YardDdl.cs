@@ -27,6 +27,7 @@ namespace Primworth_API.Queries.Yard
                 position_label   varchar(50)  NOT NULL DEFAULT 'R{row}-C{col}',
                 attribute_defs   jsonb        NOT NULL DEFAULT '[]'::jsonb,
                 rule_set_key     varchar(64),
+                facility_type_id bigint,
                 is_active        boolean   NOT NULL DEFAULT TRUE,
                 is_deleted       boolean   NOT NULL DEFAULT FALSE,
                 created_by       bigint,
@@ -38,6 +39,25 @@ namespace Primworth_API.Queries.Yard
             CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_material_type_type_key
                 ON ""{schema}"".sp_yard_material_type (LOWER(type_key)) WHERE is_deleted = FALSE;";
 
+        /// <summary>
+        /// A yard the operator can open: Slab Yard, Coil Yard, and the rest.
+        /// Areas point at one of these through sp_yard_zone.yard_type_id.
+        /// </summary>
+        public const string CreateYardType = @"
+            CREATE TABLE IF NOT EXISTS ""{schema}"".sp_yard_type (
+                yard_type_id   bigint GENERATED ALWAYS AS IDENTITY,
+                yard_type_name varchar(100) NOT NULL,
+                description    text,
+                is_active      boolean   NOT NULL DEFAULT TRUE,
+                is_deleted     boolean   NOT NULL DEFAULT FALSE,
+                created_on     timestamp NOT NULL DEFAULT NOW(),
+                updated_by     bigint,
+                updated_on     timestamp,
+                CONSTRAINT pk_sp_yard_type PRIMARY KEY (yard_type_id)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_type_yard_type_name
+                ON ""{schema}"".sp_yard_type (LOWER(yard_type_name)) WHERE is_deleted = FALSE;";
+
         // ── Areas and positions ───────────────────────────────────────────────────
         public const string CreateZone = @"
             CREATE TABLE IF NOT EXISTS ""{schema}"".sp_yard_zone (
@@ -45,6 +65,7 @@ namespace Primworth_API.Queries.Yard
                 zone_name     varchar(100) NOT NULL,
                 zone_purpose  varchar(20)  NOT NULL DEFAULT 'STORAGE',
                 storage_style varchar(10)  NOT NULL DEFAULT 'STACK',
+                yard_type_id  bigint,
                 is_active     boolean   NOT NULL DEFAULT TRUE,
                 is_deleted    boolean   NOT NULL DEFAULT FALSE,
                 created_by    bigint,
@@ -312,7 +333,27 @@ namespace Primworth_API.Queries.Yard
         /// <summary>Columns added after the first cut; harmless on a fresh schema.</summary>
         public const string AddLaterColumns = @"
             ALTER TABLE ""{schema}"".sp_yard_item       ADD COLUMN IF NOT EXISTS size_profile_id bigint;
-            ALTER TABLE ""{schema}"".sp_yard_work_order ADD COLUMN IF NOT EXISTS rework_activity_id bigint;";
+            ALTER TABLE ""{schema}"".sp_yard_work_order ADD COLUMN IF NOT EXISTS rework_activity_id bigint;
+            ALTER TABLE ""{schema}"".sp_yard_material_type ADD COLUMN IF NOT EXISTS facility_type_id bigint;
+            ALTER TABLE ""{schema}"".sp_yard_zone ADD COLUMN IF NOT EXISTS yard_type_id bigint;
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM pg_constraint c
+                    JOIN pg_class t ON t.oid = c.conrelid
+                    JOIN pg_namespace n ON n.oid = t.relnamespace
+                    JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY (c.conkey)
+                    WHERE n.nspname = '{schema}'
+                      AND t.relname = 'sp_yard_zone'
+                      AND a.attname = 'yard_type_id'
+                      AND c.contype = 'f'
+                ) THEN
+                    ALTER TABLE ""{schema}"".sp_yard_zone
+                        ADD CONSTRAINT fk_sp_yard_zone_yard_type_id
+                        FOREIGN KEY (yard_type_id) REFERENCES ""{schema}"".sp_yard_type (yard_type_id);
+                END IF;
+            END $$;";
 
         /// <summary>Feature flags and tuning. Natural key: config is addressed by name everywhere.</summary>
         public const string CreateSystemConfig = @"
@@ -337,6 +378,14 @@ namespace Primworth_API.Queries.Yard
             WHERE NOT EXISTS (
                 SELECT 1 FROM ""{schema}"".sp_yard_material_type
                 WHERE LOWER(type_key) = LOWER(@type_key) AND is_deleted = FALSE
+            );";
+
+        public const string SeedYardType = @"
+            INSERT INTO ""{schema}"".sp_yard_type (yard_type_name, description, is_active, is_deleted, created_on)
+            SELECT @yard_type_name, @description, TRUE, FALSE, NOW()
+            WHERE NOT EXISTS (
+                SELECT 1 FROM ""{schema}"".sp_yard_type
+                WHERE LOWER(yard_type_name) = LOWER(@yard_type_name) AND is_deleted = FALSE
             );";
 
         public const string SeedConfig = @"

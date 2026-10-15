@@ -83,6 +83,7 @@ namespace Primworth_API.Controllers.Yard
             cast_time = (object?)null,
             target_reheat_temp = (object?)null,
             rolling_width = (object?)null,
+            material_type = s.type_key,
         };
 
         protected static object FullSlabShape(YardCompatItem s)

@@ -2,6 +2,23 @@ using System.Text.Json;
 
 namespace Primworth_API.Models.Yard
 {
+    /// <summary>A row of gm_facility_type in the facility schema.</summary>
+    public class YardFacilityType
+    {
+        public long facility_type_id { get; set; }
+        public string facility_type_name { get; set; } = "";
+        public string? description { get; set; }
+    }
+
+    /// <summary>A row of sp_yard_type: Slab Yard, Coil Yard, and the rest.</summary>
+    public class YardType
+    {
+        public long yard_type_id { get; set; }
+        public string yard_type_name { get; set; } = "";
+        public string? description { get; set; }
+        public bool is_active { get; set; }
+    }
+
     // Maps "{facility_schema}".sp_yard_material_type.
     public class YardMaterialType
     {
@@ -16,6 +33,10 @@ namespace Primworth_API.Models.Yard
         public string attribute_defs { get; set; } = "[]";
 
         public string? rule_set_key { get; set; }
+
+        /// <summary>gm_facility_type this material belongs to. Null until a facility type is assigned.</summary>
+        public long? facility_type_id { get; set; }
+
         public bool is_active { get; set; }
     }
 
