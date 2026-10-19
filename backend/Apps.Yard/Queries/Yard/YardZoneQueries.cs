@@ -96,7 +96,9 @@ namespace Primworth_API.Queries.Yard
 
         public const string CountActiveByName = @"
             SELECT COUNT(*) FROM ""{schema}"".sp_yard_zone
-            WHERE is_deleted = FALSE AND LOWER(TRIM(zone_name)) = LOWER(TRIM(@zone_name));";
+            WHERE is_deleted = FALSE
+              AND LOWER(TRIM(zone_name)) = LOWER(TRIM(@zone_name))
+              AND COALESCE(yard_type_id, 0) = COALESCE(@yard_type_id, 0);";
 
         public const string InsertZone = @"
             INSERT INTO ""{schema}"".sp_yard_zone

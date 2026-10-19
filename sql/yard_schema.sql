@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_zone (
         CHECK (storage_style IN ('STACK', 'RACK', 'FLOOR', 'PYRAMID'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_zone_zone_name
-    ON "{schema}".sp_yard_zone (LOWER(zone_name)) WHERE is_deleted = FALSE;
+    ON "{schema}".sp_yard_zone (LOWER(TRIM(zone_name)), COALESCE(yard_type_id, 0)) WHERE is_deleted = FALSE;
 ALTER TABLE "{schema}".sp_yard_zone ADD COLUMN IF NOT EXISTS yard_type_id bigint;
 DO $$
 BEGIN

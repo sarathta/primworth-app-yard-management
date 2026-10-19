@@ -41,12 +41,12 @@ namespace Primworth_API.Controllers.Yard
                 status = r.order_status,
                 created_at = r.created_on,
                 completed_at = r.completed_at,
-                slab_id = r.item_id.ToString(),
+                item_id = r.item_id.ToString(),
                 rework_activity_id = r.rework_activity_id,
                 flag_reason = r.flag_reason,
-                slab = new
+                item = new
                 {
-                    id = r.item_id.ToString(), slab_code = r.item_code, heat_number = r.heat_number, quality_status = r.quality_status,
+                    id = r.item_id.ToString(), item_code = r.item_code, heat_number = r.heat_number, quality_status = r.quality_status,
                     status = r.item_status, grade_code = r.grade_code, stack_index = r.stack_index, temperature_state = r.temperature_state,
                 },
                 source_zone = Zone(r.source_zone_id, r.source_zone_name, r.source_zone_purpose),

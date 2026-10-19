@@ -165,10 +165,10 @@ export const TabletWorkspace: React.FC = () => {
                             <div className="w-full md:w-auto mb-6 md:mb-0">
                                 <div className="text-xs font-bold text-secondary uppercase tracking-widest mb-1 flex items-center">
                                     {order.type} ORDER
-                                    <span className="ml-3 px-2 py-0.5 bg-[#111] rounded text-accent">{order.slab.heat_number}</span>
+                                    <span className="ml-3 px-2 py-0.5 bg-[#111] rounded text-accent">{order.item.heat_number}</span>
                                 </div>
                                 <div className="text-4xl font-black font-mono tracking-wider mt-2 mb-4">
-                                    {order.slab.heat_number || order.slab.id} <span className="text-sm font-sans text-secondary tracking-widest font-normal uppercase">Heat No.</span>
+                                    {order.item.heat_number || order.item.id} <span className="text-sm font-sans text-secondary tracking-widest font-normal uppercase">Heat No.</span>
                                 </div>
 
                                 <div className="flex flex-col md:flex-row md:items-center space-y-4 md:space-y-0 md:space-x-4 bg-[#0B0C10] p-4 rounded border border-[#333]">
@@ -207,7 +207,7 @@ export const TabletWorkspace: React.FC = () => {
                                                 <div className="text-[10px] uppercase tracking-widest text-secondary mb-1">Pick Up From Sector</div>
                                                 <div className="font-bold text-warning uppercase text-lg mb-1">{order.source_zone?.name || 'EXTERNAL ENTRY'}</div>
                                                 {order.source_column && (
-                                                    <div className="inline-block px-3 py-1 bg-[#111] text-accent border border-warning/30 rounded text-xs font-bold tracking-widest">Row {order.source_column.row_index + 1} &nbsp;•&nbsp; Col {order.source_column.col_index + 1}</div>
+                                                    <div className="inline-block px-3 py-1 bg-[#111] text-accent border border-warning/30 rounded text-xs font-bold tracking-widest">Row {order.source_column.row_index} &nbsp;•&nbsp; Col {order.source_column.col_index}</div>
                                                 )}
                                             </div>
                                             <ArrowRight className="text-secondary hidden md:block" />
@@ -215,7 +215,7 @@ export const TabletWorkspace: React.FC = () => {
                                                 <div className="text-[10px] uppercase tracking-widest text-secondary mb-1">Drop Off At Sector</div>
                                                 <div className="font-bold text-success uppercase text-lg mb-1">{order.destination_zone?.name || 'TBD'}</div>
                                                 {order.destination_column && (
-                                                    <div className="inline-block px-3 py-1 bg-[#111] text-accent border border-success/30 rounded text-xs font-bold tracking-widest">Row {order.destination_column.row_index + 1} &nbsp;•&nbsp; Col {order.destination_column.col_index + 1}</div>
+                                                    <div className="inline-block px-3 py-1 bg-[#111] text-accent border border-success/30 rounded text-xs font-bold tracking-widest">Row {order.destination_column.row_index} &nbsp;•&nbsp; Col {order.destination_column.col_index}</div>
                                                 )}
                                             </div>
                                         </>
@@ -243,16 +243,16 @@ export const TabletWorkspace: React.FC = () => {
                                         />
                                         <button
                                             onClick={() => completeOrder(order.id)}
-                                            disabled={validations[order.id] !== (order.slab.heat_number || order.slab.id).slice(-3).toUpperCase() || order.slab.quality_status === 'LOCKED_QA'}
+                                            disabled={validations[order.id] !== (order.item.heat_number || order.item.id).slice(-3).toUpperCase() || order.item.quality_status === 'LOCKED_QA'}
                                             className="bg-success disabled:bg-[#1a221f] disabled:text-[#3a4f44] disabled:shadow-none text-white py-6 px-12 rounded shadow-[0_0_20px_rgba(46,139,87,0.3)] font-black uppercase tracking-widest text-xl hover:bg-opacity-90 active:scale-95 transition-all flex items-center justify-center cursor-pointer disabled:cursor-not-allowed"
                                         >
-                                            {order.slab.quality_status === 'LOCKED_QA' ? 'QA HOLD ACTIVE' : <><CheckCircle2 className="mr-3" size={32} /> {order.type === 'SCARFING_EXIT' ? 'Complete Rework' : 'Confirm Move'}</>}
+                                            {order.item.quality_status === 'LOCKED_QA' ? 'QA HOLD ACTIVE' : <><CheckCircle2 className="mr-3" size={32} /> {order.type === 'SCARFING_EXIT' ? 'Complete Rework' : 'Confirm Move'}</>}
                                         </button>
                                     </>
                                 )}
                                 {rules.MODULE_QA_WORKFLOW === 'true' && order.type !== 'AUDIT' && (
                                     <>
-                                        {order.slab.quality_status === 'LOCKED_QA' ? (
+                                        {order.item.quality_status === 'LOCKED_QA' ? (
                                             <button onClick={() => toggleQALock(order.id, false)} className="bg-warning text-black py-4 px-12 rounded font-black uppercase tracking-widest hover:bg-opacity-90 transition-colors flex items-center justify-center hover:shadow-[0_0_20px_rgba(245,158,11,0.5)] active:scale-95">
                                                 <AlertTriangle className="mr-2" /> Authorize Release
                                             </button>

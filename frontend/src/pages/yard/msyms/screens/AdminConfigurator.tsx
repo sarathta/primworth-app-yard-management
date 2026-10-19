@@ -527,6 +527,7 @@ export const AdminConfigurator: React.FC = () => {
     const [masterSub, setMasterSub] = useState<'grades' | 'dimensions' | 'productmix' | 'rework'>('grades');
     const [zones, setZones] = useState<any[]>([]);
     const [zoneError, setZoneError] = useState('');
+    const [pendingDelete, setPendingDelete] = useState<string | null>(null);
     const [rules, setRules] = useState<Record<string, string>>({});
     const [newZone, setNewZone] = useState({ name: '', type: 'STORAGE' });
     const [storageStyle, setStorageStyle] = useState<StorageStyle>(formationOptions[0]);
@@ -587,6 +588,13 @@ export const AdminConfigurator: React.FC = () => {
         const r = await symsFetch('http://localhost:4000/api/zones', { method: 'POST', body: JSON.stringify(payload) });
         if (!r.ok) { setZoneError(await symsError(r, 'Could not create that sector.')); return; }
         setNewZone({ name: '', type: 'STORAGE' }); applyFormationDefaults(storageStyle); fetchZones();
+    };
+    const deleteZone = async (zone: { id: string }) => {
+        setZoneError('');
+        const r = await symsFetch(`http://localhost:4000/api/zones/${zone.id}`, { method: 'DELETE' });
+        if (!r.ok) { setPendingDelete(null); setZoneError(await symsError(r, 'Could not delete that sector.')); return; }
+        setPendingDelete(null);
+        fetchZones();
     };
 
     // Was `user?.role !== 'Admin'` — a standalone mSYMS role name the platform never
@@ -715,15 +723,28 @@ export const AdminConfigurator: React.FC = () => {
                     </div>
                     <div className="bg-primary p-6 rounded-xl border border-[#333] max-h-[700px] overflow-y-auto">
                         <SectionHeader icon={<Layers size={18} />} title="Active Sectors" />
+                        {zoneError && <div className="text-danger text-xs bg-danger/10 border border-danger/30 rounded px-3 py-2 mb-3">{zoneError}</div>}
                         <div className="space-y-3">
                             {zones.map(z => {
                                 const totalCap = z.columns ? z.columns.reduce((a: number, c: any) => a + c.capacity_limit, 0) : 0;
                                 return (
                                     <div key={z.id} className="bg-[#0B0C10] p-4 rounded-lg border border-[#222]">
-                                        <div className="flex justify-between items-center">
-                                            <div><div className="font-bold text-white uppercase text-sm">{z.name}</div><div className="text-xs text-accent mt-0.5 tracking-widest uppercase">{z.type}{z.storage_style ? ` · ${FORMATION[z.storage_style as StorageStyle]?.label || z.storage_style}` : ''}</div></div>
-                                            <div className="text-right"><div className="text-[10px] text-secondary uppercase">Capacity</div><div className="font-mono text-white text-lg font-bold">{totalCap}</div></div>
+                                        <div className="flex justify-between items-center gap-3">
+                                            <div className="min-w-0"><div className="font-bold text-white uppercase text-sm">{z.name}</div><div className="text-xs text-accent mt-0.5 tracking-widest uppercase">{z.type}{z.storage_style ? ` · ${FORMATION[z.storage_style as StorageStyle]?.label || z.storage_style}` : ''}</div></div>
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <div className="text-right"><div className="text-[10px] text-secondary uppercase">Capacity</div><div className="font-mono text-white text-lg font-bold">{totalCap}</div></div>
+                                                <button type="button" onClick={() => setPendingDelete(pendingDelete === z.id ? null : z.id)} title={`Delete ${z.name}`} className="p-1.5 rounded hover:bg-danger/20 text-secondary hover:text-danger"><Trash2 size={14} /></button>
+                                            </div>
                                         </div>
+                                        {pendingDelete === z.id && (
+                                            <div className="flex items-center justify-between gap-3 border-t border-[#1a1a1a] pt-2 mt-2">
+                                                <span className="text-[10px] uppercase tracking-widest text-danger">Delete this sector?</span>
+                                                <span className="flex gap-2">
+                                                    <button type="button" onClick={() => setPendingDelete(null)} className="px-2 py-1 text-[10px] uppercase tracking-widest text-secondary border border-[#333] rounded">Cancel</button>
+                                                    <button type="button" onClick={() => deleteZone(z)} className="px-2 py-1 text-[10px] uppercase tracking-widest text-white bg-danger rounded">Delete</button>
+                                                </span>
+                                            </div>
+                                        )}
                                         {z.layout_config && <div className="text-[10px] text-secondary border-t border-[#1a1a1a] pt-2 mt-2">{z.layout_config.rows} × {z.layout_config.cols} grid — {z.columns?.length || 0} columns</div>}
                                     </div>
                                 );

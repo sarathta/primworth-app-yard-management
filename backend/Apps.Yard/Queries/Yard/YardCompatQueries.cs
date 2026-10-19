@@ -129,7 +129,6 @@ namespace Primworth_API.Queries.Yard
             JOIN ""{schema}"".sp_yard_item i ON i.item_id = w.item_id
             LEFT JOIN ""{schema}"".sp_yard_zone     sz ON sz.zone_id = w.source_zone_id
             LEFT JOIN ""{schema}"".sp_yard_zone     dz ON dz.zone_id = w.destination_zone_id
-            LEFT JOIN ""{schema}"".sp_yard_zone     iz ON iz.zone_id = i.zone_id
             LEFT JOIN ""{schema}"".sp_yard_position sp ON sp.position_id = w.source_position_id
             LEFT JOIN ""{schema}"".sp_yard_position dp ON dp.position_id = w.destination_position_id
             WHERE w.is_deleted = FALSE AND w.order_status IN ('PENDING', 'IN_PROGRESS', 'FLAGGED')
@@ -138,9 +137,11 @@ namespace Primworth_API.Queries.Yard
                     WHERE mt.material_type_id = i.material_type_id
                       AND mt.is_deleted = FALSE
                       AND LOWER(mt.type_key) = LOWER(@type_key)))
+              -- The item's own zone is not what places the order. A pickup belongs to the source
+              -- yard. An external entry has no source; it belongs to the yard of its destination.
               AND (@yard_type_id IS NULL
                    OR sz.yard_type_id = @yard_type_id
-                   OR (w.source_zone_id IS NULL AND iz.yard_type_id = @yard_type_id))
+                   OR (w.source_zone_id IS NULL AND dz.yard_type_id = @yard_type_id))
             ORDER BY CASE w.order_type WHEN 'DIGGING' THEN 0 WHEN 'DISPATCH' THEN 1 ELSE 2 END, w.created_on;";
     }
 }

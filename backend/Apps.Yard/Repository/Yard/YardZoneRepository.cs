@@ -65,7 +65,8 @@ namespace Primworth_API.Repository.Yard
             using var tx = connection.BeginTransaction();
 
             var clash = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-                Sql(YardZoneQueries.CountActiveByName, schema), new { zone_name = input.zone_name }, tx));
+                Sql(YardZoneQueries.CountActiveByName, schema),
+                new { zone_name = input.zone_name, yard_type_id = input.yard_type_id is > 0 ? input.yard_type_id : null }, tx));
             if (clash > 0) throw new YardDuplicateException($"An area named '{input.zone_name.Trim()}' already exists in this yard.");
 
             long zoneId;

@@ -79,7 +79,7 @@ namespace Primworth_API.Queries.Yard
                     CHECK (storage_style IN ('STACK', 'RACK', 'FLOOR', 'PYRAMID'))
             );
             CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_zone_zone_name
-                ON ""{schema}"".sp_yard_zone (LOWER(zone_name)) WHERE is_deleted = FALSE;";
+                ON ""{schema}"".sp_yard_zone (LOWER(TRIM(zone_name)), COALESCE(yard_type_id, 0)) WHERE is_deleted = FALSE;";
 
         /// <summary>Which material types an area accepts. An area with no rows accepts nothing.</summary>
         public const string CreateZoneMaterialType = @"
@@ -336,6 +336,9 @@ namespace Primworth_API.Queries.Yard
             ALTER TABLE ""{schema}"".sp_yard_work_order ADD COLUMN IF NOT EXISTS rework_activity_id bigint;
             ALTER TABLE ""{schema}"".sp_yard_material_type ADD COLUMN IF NOT EXISTS facility_type_id bigint;
             ALTER TABLE ""{schema}"".sp_yard_zone ADD COLUMN IF NOT EXISTS yard_type_id bigint;
+            DROP INDEX IF EXISTS ""{schema}"".uq_sp_yard_zone_zone_name;
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_zone_zone_name
+                ON ""{schema}"".sp_yard_zone (LOWER(TRIM(zone_name)), COALESCE(yard_type_id, 0)) WHERE is_deleted = FALSE;
             DO $$
             BEGIN
                 IF NOT EXISTS (
