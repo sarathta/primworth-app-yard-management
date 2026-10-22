@@ -16,7 +16,8 @@
     ["YRDQ", "Yard Management | Quality"],
     ["YRDU", "Yard Management | Release QA Lock"],
     ["YRDA", "Yard Management | Administration"],
-    ["YRDH", "Yard Management | Dispatch & Mill Schedule"]
+    ["YRDH", "Yard Management | Dispatch & Mill Schedule"],
+    ["YRDM", "Yard Management | Users"]
   ],
   "backend": {
     "project": "Apps.Yard",
@@ -41,7 +42,8 @@
       { "path": "mill", "component": "MillSchedule" },
       { "path": "dispatch", "component": "DispatchQR" },
       { "path": "qa", "component": "QADashboard" },
-      { "path": "admin", "component": "AdminConfigurator" }
+      { "path": "admin", "component": "AdminConfigurator" },
+      { "path": "users", "component": "Users" }
     ],
     "serviceFile": "yard.ts",
     "typesFile": "yard.ts",
@@ -51,7 +53,8 @@
       { "label": "Mill Schedule", "route_path": "/yard/mill",     "icon": "schedule",       "permission_code": "YRDH" },
       { "label": "Dispatch",      "route_path": "/yard/dispatch", "icon": "local_shipping", "permission_code": "YRDH" },
       { "label": "Quality",       "route_path": "/yard/qa",       "icon": "verified",       "permission_code": "YRDQ" },
-      { "label": "Configuration", "route_path": "/yard/admin",    "icon": "tune",           "permission_code": "YRDA" }
+      { "label": "Configuration", "route_path": "/yard/admin",    "icon": "tune",           "permission_code": "YRDA" },
+      { "label": "Users",         "route_path": "/yard/users",    "icon": "group",          "permission_code": "YRDM" }
     ]
   }
 }

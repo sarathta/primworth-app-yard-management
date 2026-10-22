@@ -23,10 +23,17 @@ namespace Platform.DevHost
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            if (required.Count == 0 || _dev.Permissions.Contains("*"))
+            if (required.Count == 0)
                 return next();
 
-            var missing = required.Where(c => !_dev.Permissions.Contains(c, StringComparer.OrdinalIgnoreCase)).ToList();
+            // A signed-in account carries its own permission claims. Tokens issued before that
+            // (the original dev sign-in) fall back to Dev:Permissions.
+            var fromToken = context.HttpContext.User.FindAll("permission").Select(c => c.Value).ToList();
+            IEnumerable<string> granted = fromToken.Count > 0 ? fromToken : _dev.Permissions;
+            if (granted.Contains("*", StringComparer.OrdinalIgnoreCase))
+                return next();
+
+            var missing = required.Where(c => !granted.Contains(c, StringComparer.OrdinalIgnoreCase)).ToList();
             if (missing.Count == 0)
                 return next();
 
@@ -34,7 +41,7 @@ namespace Platform.DevHost
             {
                 Data = null,
                 Success = false,
-                Message = $"Missing permission: {string.Join(", ", missing)}. Grant it in Dev:Permissions to test this endpoint.",
+                Message = $"You do not have permission to do that ({string.Join(", ", missing)}).",
             })
             { StatusCode = StatusCodes.Status403Forbidden };
             return Task.CompletedTask;

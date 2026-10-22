@@ -61,6 +61,36 @@ export async function login(email: string, password: string): Promise<void> {
 
   sessionStorage.setItem('authToken', authToken);
   sessionStorage.setItem('userData', JSON.stringify(response.data));
+  rememberAssignedYards(response.data?.yards);
+}
+
+const YARDS_KEY = 'pw_selectedYards';
+const YARDS_CONFIRMED = 'pw_yardsConfirmed';
+
+function rememberAssignedYards(yards: unknown): void {
+  if (!Array.isArray(yards)) {
+    sessionStorage.removeItem(YARDS_KEY);
+    sessionStorage.removeItem(YARDS_CONFIRMED);
+    return;
+  }
+  const next = yards.filter(y => {
+    if (!y || typeof y !== 'object') return false;
+    const row = y as { yard_type_id?: number; yard_type_name?: string };
+    return Number(row.yard_type_id) > 0 && !!row.yard_type_name;
+  });
+  // One yard opens on its own. More than one waits for the selection screen.
+  if (next.length === 1) {
+    sessionStorage.setItem(YARDS_KEY, JSON.stringify(next));
+    sessionStorage.setItem(YARDS_CONFIRMED, '1');
+  } else {
+    sessionStorage.removeItem(YARDS_KEY);
+    sessionStorage.removeItem(YARDS_CONFIRMED);
+  }
+}
+
+export function isAdmin(): boolean {
+  const data = getUserData();
+  return data?.is_admin === true || data?.is_super_admin === true;
 }
 
 // The first page this user's role can actually open. In the platform this is a fixed list

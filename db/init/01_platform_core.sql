@@ -3,15 +3,35 @@
 -- Runs once, when the container's data volume is first created.
 
 -- ── public: routing ───────────────────────────────────────────────────────────────────────────
+-- People who sign in. password_hash is filled by the dev host on startup (the seed row has none).
+-- is_admin may open Users and assign yards. role_id 1 is an administrator, 2 is a regular user.
 CREATE TABLE public.sys_users (
-    id          bigint PRIMARY KEY,
-    first_name  varchar NOT NULL,
-    last_name   varchar NOT NULL,
-    email       varchar NOT NULL,
-    role_id     integer NOT NULL,
-    is_active   boolean NOT NULL DEFAULT TRUE
+    id            bigint PRIMARY KEY,
+    first_name    varchar NOT NULL,
+    last_name     varchar NOT NULL,
+    email         varchar NOT NULL,
+    role_id       integer NOT NULL,
+    is_active     boolean NOT NULL DEFAULT TRUE,
+    password_hash text,
+    phone         varchar(30),
+    is_admin      boolean NOT NULL DEFAULT FALSE,
+    created_on    timestamp NOT NULL DEFAULT NOW(),
+    updated_on    timestamp NOT NULL DEFAULT NOW()
 );
-INSERT INTO public.sys_users VALUES (1, 'Dev', 'User', 'dev@local', 1, TRUE);
+INSERT INTO public.sys_users (id, first_name, last_name, email, role_id, is_active, is_admin)
+VALUES (1, 'Dev', 'User', 'dev@local', 1, TRUE, TRUE);
+CREATE UNIQUE INDEX uq_sys_users_email ON public.sys_users (LOWER(email));
+CREATE SEQUENCE public.sys_users_id_seq AS bigint;
+SELECT setval('public.sys_users_id_seq', (SELECT COALESCE(MAX(id), 1) FROM public.sys_users));
+
+-- Yards a person sees in the left menu. yard_type_id is sp_yard_type in that sub-project schema.
+CREATE TABLE public.sys_user_yard (
+    user_id        bigint NOT NULL REFERENCES public.sys_users (id) ON DELETE CASCADE,
+    project_id     bigint NOT NULL,
+    sub_project_id bigint NOT NULL,
+    yard_type_id   bigint NOT NULL,
+    PRIMARY KEY (user_id, project_id, sub_project_id, yard_type_id)
+);
 
 CREATE TABLE public.sys_pr_project (
     project_id          bigint PRIMARY KEY,

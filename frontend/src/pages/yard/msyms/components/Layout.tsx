@@ -1,4 +1,5 @@
 import { Outlet, Navigate } from 'react-router-dom';
+import { useYardSelection } from '../../../../contexts/YardSelectionContext';
 import { useYardMaterial } from '../../components/MaterialGate';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -23,6 +24,7 @@ import { useSocket } from '../contexts/SocketContext';
 export const Layout = () => {
   const { user } = useAuth();
   const { connected, lastContactAt } = useSocket();
+  const { assigned } = useYardSelection();
   const { material, changeMaterial } = useYardMaterial();
 
   // AuthContext projects the platform session into the shape these screens expect, so a
@@ -42,9 +44,11 @@ export const Layout = () => {
             ? `Yard link offline — last answer ${lastContactAt.toLocaleTimeString()}, figures may be stale`
             : 'Yard link offline — figures may be stale'}
         <span className="msyms-linkbar__material">{material.singular}</span>
-        <button type="button" className="msyms-linkbar__change" onClick={changeMaterial}>
-          Change yards
-        </button>
+        {assigned.length > 1 && (
+          <button type="button" className="msyms-linkbar__change" onClick={changeMaterial}>
+            Change yards
+          </button>
+        )}
       </div>
 
       <div className="msyms-screen">

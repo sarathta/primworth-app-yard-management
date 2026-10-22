@@ -11,33 +11,17 @@ export const Icon = ({ name, className = '' }: { name: string; className?: strin
 
 export interface PageHeaderProps {
   /** Breadcrumb before the title, e.g. ['Roll Management']. */
-  crumbs?: string[];
   title: string;
-  subtitle: string;
   actions?: ReactNode;
-  aside?: ReactNode;
   onReload?: () => void;
 }
 
-export function PageHeader({ crumbs = [], title, subtitle, actions, aside, onReload }: PageHeaderProps) {
+export function PageHeader({title,  actions, onReload }: PageHeaderProps) {
   return (
     <>
-      <div className="pg-context">
-        <div className="breadcrumb">
-          {crumbs.map(c => (
-            <span key={c} style={{ display: 'contents' }}>
-              <span>{c}</span>
-              <Icon name="chevron_right" />
-            </span>
-          ))}
-          <span className="active">{title}</span>
-        </div>
-        {aside && <div className="pg-context__aside">{aside}</div>}
-      </div>
       <div className="page-header">
         <div>
           <h2>{title}</h2>
-          <p className="page-sub">{subtitle}</p>
         </div>
         <div className="page-header__actions">
           {onReload && (

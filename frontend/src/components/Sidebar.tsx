@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { getUserData, hasPermission, logout } from '../auth';
+import { getUserData, hasPermission, isAdmin, logout } from '../auth';
 import { getOemAndFacilityTypes } from '../services/All_Api_services';
 import { apps, type AppNavItem } from '../apps';
 import { useYardSelection, type SelectedYard } from '../contexts/YardSelectionContext';
@@ -19,7 +19,7 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps): React.JSX.Element {
   const location = useLocation();
   const [openKeys, setOpenKeys] = useState<Record<string, boolean>>({});
-  const { selected: selectedYards } = useYardSelection();
+  const { selected: selectedYards, ready: yardsReady } = useYardSelection();
   const yardTypeId = new URLSearchParams(location.search).get('yardTypeId');
 
   // Profile dropdown state and logic
@@ -83,9 +83,28 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps):
 
       <nav className="sidebar__nav">
         {apps.filter(app => hasPermission(app.permissionCode)).map(app => {
+          const usersLink = app.key === 'yard_management' && isAdmin() ? (
+            <NavLink
+              key="users"
+              to="/yard/users"
+              end
+              className={({ isActive }) => 'sidebar__nav-item' + (isActive ? ' sidebar__nav-item--active' : '')}
+            >
+              <span className="material-symbols-outlined">group</span>
+              <span className="sidebar__nav-label">Users</span>
+            </NavLink>
+          ) : null;
+
+          if (app.key === 'yard_management' && !yardsReady) {
+            return <Fragment key={app.key}>{usersLink}</Fragment>;
+          }
+
           if (app.key === 'yard_management' && selectedYards.length > 0) {
-            const items = app.frontend.nav.filter(item => hasPermission(item.permission_code));
-            return selectedYards.map(yard => {
+            const items = app.frontend.nav.filter(item => item.route_path !== '/yard/users' && hasPermission(item.permission_code));
+            return (
+              <Fragment key={app.key}>
+                {usersLink}
+                {selectedYards.map(yard => {
               const key = `yard-${yard.yard_type_id}`;
               const expanded = yardOpen(key);
               return (
@@ -123,7 +142,9 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps):
                   )}
                 </div>
               );
-            });
+            })}
+              </Fragment>
+            );
           }
 
           const onRoute = location.pathname.startsWith(app.frontend.routeBase);
@@ -131,9 +152,11 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps):
           const waitingForYards = app.key === 'yard_management' && selectedYards.length === 0;
           return (
             <Fragment key={app.key}>
+              {usersLink}
               {waitingForYards ? (
                 <NavLink
                   to="/yard"
+                  end
                   className={({ isActive }) =>
                     'sidebar__nav-item sidebar__nav-group' + (isActive ? ' sidebar__nav-item--active' : '')
                   }
@@ -158,7 +181,7 @@ export default function Sidebar({ collapsed, onCollapsedChange }: SidebarProps):
 
               {!waitingForYards && expanded && (
                 <div className="sidebar__subnav">
-                  {app.frontend.nav.filter(item => hasPermission(item.permission_code)).map(item => (
+                  {app.frontend.nav.filter(item => item.route_path !== '/yard/users' && hasPermission(item.permission_code)).map(item => (
                     <NavLink
                       key={item.route_path}
                       to={item.route_path}

@@ -24,30 +24,80 @@ namespace Platform.DevHost
 
             // Same path and answer shape as the platform. The platform puts the JWT in
             // data.password (historical); the dev host sends it in both fields.
-            app.MapPost("/api/User/Login", (LoginRequest request, DevOptions dev) =>
+            app.MapPost("/api/User/Login", async (LoginRequest request, UserDirectory users, DevOptions dev) =>
             {
-                var ok = string.Equals(request.email?.Trim(), dev.User.Email, StringComparison.OrdinalIgnoreCase)
-                         && request.password == dev.User.Password;
-                if (!ok)
-                    return Results.Json(new ServiceResponse<object?> { Success = false, Message = "Invalid email or password.", Data = null },
+                var (profile, error) = await users.AuthenticateAsync(request.email, request.password);
+                if (profile == null)
+                    return Results.Json(new ServiceResponse<object?> { Success = false, Message = error ?? "Invalid email or password.", Data = null },
                         statusCode: StatusCodes.Status401Unauthorized);
 
-                var token = CreateToken(dev);
-                var permissions = dev.Permissions.Select(c => new { permission_code = c }).ToList();
+                var token = CreateToken(dev, profile);
                 var data = new
                 {
                     token,
                     password = token,
-                    id = dev.User.Id,
-                    email = dev.User.Email,
-                    first_name = dev.User.FirstName,
-                    last_name = dev.User.LastName,
-                    role_name = dev.Permissions.Contains("*") ? "Dev Super Admin" : "Dev User",
-                    is_super_admin = dev.Permissions.Contains("*"),
-                    permissions,
+                    profile.id,
+                    profile.email,
+                    profile.first_name,
+                    profile.last_name,
+                    profile.role_name,
+                    profile.is_admin,
+                    profile.is_super_admin,
+                    profile.permissions,
+                    profile.yards,
                 };
                 return Results.Ok(new ServiceResponse<object> { Success = true, Message = "Login successful.", Data = data });
             }).AllowAnonymous();
+
+            app.MapGet("/api/User/me", async (HttpContext http, UserDirectory users) =>
+            {
+                var profile = await users.ProfileByIdAsync(UserDirectory.CurrentUserId(http));
+                if (profile == null)
+                    return UserDirectory.Denied("Sign in required.", StatusCodes.Status401Unauthorized);
+                return Results.Ok(new ServiceResponse<AuthProfile> { Success = true, Message = "Profile fetched.", Data = profile });
+            });
+
+            app.MapGet("/api/users", async (HttpContext http, UserDirectory users) =>
+            {
+                var deny = await users.DenyUnlessAdminAsync(http);
+                if (deny != null) return deny;
+                var rows = await users.ListAsync();
+                return Results.Ok(new ServiceResponse<List<AppUserDto>> { Success = true, Message = "Users fetched.", Data = rows });
+            });
+
+            app.MapPost("/api/users", async (HttpContext http, UserWrite input, UserDirectory users) =>
+            {
+                var deny = await users.DenyUnlessAdminAsync(http);
+                if (deny != null) return deny;
+                var (projectId, subProjectId) = Tenant(http);
+                var result = await users.CreateAsync(input, projectId, subProjectId);
+                return UserDirectory.Saved(result, $"{input.first_name?.Trim()} {input.last_name?.Trim()} added.".Trim());
+            });
+
+            app.MapPut("/api/users/{id:long}", async (long id, HttpContext http, UserWrite input, UserDirectory users) =>
+            {
+                var deny = await users.DenyUnlessAdminAsync(http);
+                if (deny != null) return deny;
+                var (projectId, subProjectId) = Tenant(http);
+                var result = await users.UpdateAsync(id, input, projectId, subProjectId, UserDirectory.CurrentUserId(http));
+                return UserDirectory.Saved(result, "User saved.");
+            });
+
+            app.MapDelete("/api/users/{id:long}", async (long id, HttpContext http, UserDirectory users) =>
+            {
+                var deny = await users.DenyUnlessAdminAsync(http);
+                if (deny != null) return deny;
+                var result = await users.DeleteAsync(id);
+                return UserDirectory.Saved(result, "User deleted.");
+            });
+
+            app.MapPut("/api/users/{id:long}/active", async (long id, HttpContext http, ActiveInput input, UserDirectory users) =>
+            {
+                var deny = await users.DenyUnlessAdminAsync(http);
+                if (deny != null) return deny;
+                var result = await users.SetActiveAsync(id, input.is_active, UserDirectory.CurrentUserId(http));
+                return UserDirectory.Saved(result, input.is_active ? "User activated." : "User deactivated.");
+            });
 
             // Branding + masters the frame reads. Anonymous in the platform too (the login page needs it).
             app.MapGet("/api/Project/GetOemAndFacilityTypes", async (DapperContext ctx, DevOptions dev) =>
@@ -117,20 +167,37 @@ namespace Platform.DevHost
             });
         }
 
-        private static string CreateToken(DevOptions dev)
+        private static (long? projectId, long? subProjectId) Tenant(HttpContext http)
         {
+            static long? Read(HttpContext ctx, string name)
+            {
+                var raw = ctx.Request.Headers[name].ToString();
+                return long.TryParse(raw, out var id) && id > 0 ? id : null;
+            }
+            return (Read(http, "X-Project-Id"), Read(http, "X-Sub-Project-Id"));
+        }
+
+        private static string CreateToken(DevOptions dev, AuthProfile profile)
+        {
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, profile.id.ToString()),
+                new(ClaimTypes.Name, profile.first_name),
+                new(ClaimTypes.Email, profile.email),
+                new(ClaimTypes.Role, profile.is_admin ? "1" : "2"),
+                new("is_admin", profile.is_admin ? "true" : "false"),
+            };
+            if (profile.is_admin) claims.Add(new Claim("permission", "*"));
+            else claims.AddRange(UserDirectory.RegularPermissions.Select(code => new Claim("permission", code)));
+
             var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(dev.JwtKey));
             var token = new JwtSecurityToken(
-                claims: new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, dev.User.Id.ToString()),
-                    new Claim(ClaimTypes.Name, dev.User.FirstName),
-                    new Claim(ClaimTypes.Email, dev.User.Email),
-                    new Claim(ClaimTypes.Role, "1"),
-                },
+                claims: claims,
                 expires: DateTime.UtcNow.AddHours(12),
                 signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature));
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
+        public record ActiveInput(bool is_active);
     }
 }

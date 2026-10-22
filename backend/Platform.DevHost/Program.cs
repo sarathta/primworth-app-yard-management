@@ -26,6 +26,7 @@ builder.Services.AddScoped<ISchemaResolverService, DevSchemaResolverService>();
 builder.Services.AddScoped<IProjectAccessGuard, DevProjectAccessGuard>();
 builder.Services.AddSingleton<IRolePermissionReader, DevRolePermissionReader>();
 builder.Services.AddScoped<DevProvisioningService>();
+builder.Services.AddScoped<UserDirectory>();
 
 // ── the applications: discovered from the referenced Apps.* projects ────────────────────────
 var appAssemblies = AppDiscovery.LoadAppAssemblies();
@@ -82,6 +83,11 @@ if (dev.ProvisionOnStartup)
     using var scope = app.Services.CreateScope();
     var results = await scope.ServiceProvider.GetRequiredService<DevProvisioningService>().RunAllAsync(app.Logger);
     app.Logger.LogInformation("[DevHost] startup provisioning: {Count} run(s)", results.Count);
+}
+
+using (var userScope = app.Services.CreateScope())
+{
+    await userScope.ServiceProvider.GetRequiredService<UserDirectory>().EnsureAsync(app.Logger);
 }
 
 app.Logger.LogInformation("[DevHost] ready — Swagger at {Url}/swagger, sign in as {Email} / {Password}",
