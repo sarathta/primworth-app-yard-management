@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Trash2, Plus, Edit2, Check, X, ChevronDown, ChevronRight, Save, Shield, Layers, Database, ScrollText, FlaskConical, Ruler, Package, ExternalLink } from 'lucide-react';
+import { Trash2, Plus, Edit2, Check, X, ChevronDown, ChevronRight, Save, Shield, Layers, Database, ScrollText, FlaskConical, Ruler, Package, ExternalLink, GitBranch } from 'lucide-react';
 import { symsFetch, symsError } from '../symsApi';
 import { hasPermission } from '../../../../auth';
 import { useYardMaterial } from '../../components/MaterialGate';
 import { FORMATION, formationsFor, type StorageStyle } from '../../formations';
 
 // ─── Types ───────────────────────────────────────────────────────────────
-type Tab = 'zones' | 'master_data' | 'erp_modules' | 'activity_log';
+type Tab = 'zones' | 'master_data' | 'erp_modules' | 'rules' | 'activity_log';
+
+const RulesEditor = React.lazy(() => import('./RulesEditor'));
 
 // ─── Sub-component: Toggle Switch ────────────────────────────────────────
 const Toggle: React.FC<{ value: boolean; onChange: (v: boolean) => void; color?: string }> = ({ value, onChange, color = 'bg-accent' }) => (
@@ -609,7 +611,7 @@ export const AdminConfigurator: React.FC = () => {
         );
     }
 
-    // Three tabs are gone, and none of them because they were hard.
+    // Two tabs are gone, and none of them because they were hard.
     //
     //   Users     — the platform owns identity. This tab created Slab-Yard-local accounts
     //               with their own usernames and passwords: a second place to be a person.
@@ -617,13 +619,13 @@ export const AdminConfigurator: React.FC = () => {
     //   Integrations — the platform owns plant connections. Communication Interface and the
     //               Tag Hub are where a PLC, a LIMS or an ERP is wired up, with driver
     //               tests, confirmed writes and an audit trail behind them.
-    //   Decision Rules — a GoRules editor for a decision model nothing evaluates. The rule
-    //               engine's Zen path is not built, so every model saved here would have sat
-    //               unread while the built-in allocator did the routing.
+    // Rules is the GoRules editor. Save writes the graph to data/rules.json. The yard does
+    // not evaluate that file; the built-in allocator still does the routing.
     const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
         { id: 'zones' as Tab, label: 'Yard Topology', icon: <Layers size={14} /> },
         { id: 'master_data', label: 'Master Data', icon: <Database size={14} /> },
         { id: 'erp_modules', label: 'Rule Book', icon: <Shield size={14} /> },
+        { id: 'rules', label: 'Rules', icon: <GitBranch size={14} /> },
         { id: 'activity_log', label: 'Activity Log', icon: <ScrollText size={14} /> },
     ];
 
@@ -875,6 +877,13 @@ export const AdminConfigurator: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ── Tab: Rules (GoRules) ─────────────────────────────────── */}
+            {activeTab === 'rules' && (
+                <React.Suspense fallback={<div className="text-secondary text-xs">Loading the rules editor...</div>}>
+                    <RulesEditor />
+                </React.Suspense>
             )}
 
             {/* ── Tab: Activity Log ────────────────────────────────────── */}

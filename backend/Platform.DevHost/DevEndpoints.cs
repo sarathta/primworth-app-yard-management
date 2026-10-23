@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Dapper;
 using Microsoft.IdentityModel.Tokens;
 using Primworth_API.IRepository;
@@ -160,11 +161,66 @@ namespace Platform.DevHost
                 return Results.Ok(new ServiceResponse<object> { Success = true, Message = "Projects fetched.", Data = result });
             });
 
+            app.MapGet("/api/yard/rules", (HttpContext http, IWebHostEnvironment env, DevOptions dev) =>
+            {
+                if (!CanConfigureYard(http, dev))
+                    return UserDirectory.Denied("You do not have permission to do that (YRDA).", StatusCodes.Status403Forbidden);
+                var path = RulesFile(env);
+                if (!File.Exists(path))
+                    return Results.Ok(new ServiceResponse<JsonElement> { Success = true, Message = "Rules fetched.", Data = EmptyRules() });
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                return Results.Ok(new ServiceResponse<JsonElement> { Success = true, Message = "Rules fetched.", Data = doc.RootElement.Clone() });
+            });
+
+            app.MapPut("/api/yard/rules", async (HttpContext http, IWebHostEnvironment env, DevOptions dev) =>
+            {
+                if (!CanConfigureYard(http, dev))
+                    return UserDirectory.Denied("You do not have permission to do that (YRDA).", StatusCodes.Status403Forbidden);
+
+                using var reader = new StreamReader(http.Request.Body);
+                var raw = await reader.ReadToEndAsync();
+                JsonDocument doc;
+                try { doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(raw) ? "{}" : raw); }
+                catch (JsonException) { return UserDirectory.Denied("Rules must be JSON.", StatusCodes.Status400BadRequest); }
+
+                using (doc)
+                {
+                    var root = doc.RootElement;
+                    if (root.ValueKind != JsonValueKind.Object
+                        || !root.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array
+                        || !root.TryGetProperty("edges", out var edges) || edges.ValueKind != JsonValueKind.Array)
+                        return UserDirectory.Denied("A decision graph needs nodes and edges.", StatusCodes.Status400BadRequest);
+
+                    var path = RulesFile(env);
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    var pretty = JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
+                    await File.WriteAllTextAsync(path, pretty);
+                }
+                return Results.Ok(new ServiceResponse<object?> { Success = true, Message = "Rules saved!", Data = null });
+            });
+
             app.MapPost("/api/dev/provision", async (DevProvisioningService svc, ILogger<DevProvisioningService> logger) =>
             {
                 var results = await svc.RunAllAsync(logger);
                 return Results.Ok(new ServiceResponse<object> { Success = true, Message = "Provisioning run complete.", Data = results });
             });
+        }
+
+        private static string RulesFile(IWebHostEnvironment env) =>
+            Path.Combine(env.ContentRootPath, "data", "rules.json");
+
+        private static JsonElement EmptyRules()
+        {
+            using var doc = JsonDocument.Parse("""{"nodes":[],"edges":[]}""");
+            return doc.RootElement.Clone();
+        }
+
+        private static bool CanConfigureYard(HttpContext http, DevOptions dev)
+        {
+            var fromToken = http.User.FindAll("permission").Select(c => c.Value).ToList();
+            IEnumerable<string> granted = fromToken.Count > 0 ? fromToken : dev.Permissions;
+            return granted.Contains("*", StringComparer.OrdinalIgnoreCase)
+                || granted.Contains("YRDA", StringComparer.OrdinalIgnoreCase);
         }
 
         private static (long? projectId, long? subProjectId) Tenant(HttpContext http)
