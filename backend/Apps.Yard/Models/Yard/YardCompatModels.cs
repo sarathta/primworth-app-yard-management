@@ -66,6 +66,10 @@ namespace Primworth_API.Models.Yard
         public string? item_status { get; set; }
         public string? grade_code { get; set; }
         public int? stack_index { get; set; }
+        public decimal? length_mm { get; set; }
+        public decimal? width_mm { get; set; }
+        public decimal? thickness_mm { get; set; }
+        public long? size_profile_id { get; set; }
         public string? temperature_state { get; set; }
         public long? source_zone_id { get; set; }
         public string? source_zone_name { get; set; }

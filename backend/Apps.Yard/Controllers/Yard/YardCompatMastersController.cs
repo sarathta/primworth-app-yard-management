@@ -34,23 +34,30 @@ namespace Primworth_API.Controllers.Yard
         // ── Dimensions = size profiles ───────────────────────────────────────────
         [RequiresPermission(Dashboard, Operator, Quality, Mill, Admin)]
         [HttpGet("masters/dimensions")]
-        public Task<IActionResult> Dimensions([FromQuery] long? projectId, [FromQuery] long? subProjectId)
-            => RunRead(async schema => Ok((await _masters.GetSizeProfilesAsync(schema)).Select(d => new
+        public Task<IActionResult> Dimensions([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] long? material_type_id, [FromQuery] string? materialType)
+            => RunRead(async schema =>
             {
-                id = d.size_profile_id, name = d.profile_name, d.length_mm, d.width_mm, d.thickness_mm, d.tolerance_pct, d.is_active,
-            })), projectId, subProjectId, Array.Empty<object>());
+                var scoped = material_type_id is > 0 || !string.IsNullOrWhiteSpace(materialType);
+                var materialId = await ResolveMaterialTypeIdAsync(schema, material_type_id, materialType);
+                if (scoped && materialId is not > 0) return Ok(Array.Empty<object>());
+                return Ok((await _masters.GetSizeProfilesAsync(schema, materialId)).Select(d => new
+                {
+                    id = d.size_profile_id, name = d.profile_name, material_type_id = d.material_type_id,
+                    d.length_mm, d.width_mm, d.thickness_mm, d.tolerance_pct, d.is_active,
+                }));
+            }, projectId, subProjectId, Array.Empty<object>());
 
         [RequiresPermission(Admin)]
         [HttpPost("masters/dimensions")]
-        public Task<IActionResult> CreateDimension([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromBody] CompatDimensionBody body)
-            => SaveDimension(projectId, subProjectId, null, body);
+        public Task<IActionResult> CreateDimension([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromBody] CompatDimensionBody body)
+            => SaveDimension(projectId, subProjectId, null, body, materialType);
 
         [RequiresPermission(Admin)]
         [HttpPut("masters/dimensions/{id:long}")]
-        public Task<IActionResult> UpdateDimension(long id, [FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromBody] CompatDimensionBody body)
-            => SaveDimension(projectId, subProjectId, id, body);
+        public Task<IActionResult> UpdateDimension(long id, [FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromBody] CompatDimensionBody body)
+            => SaveDimension(projectId, subProjectId, id, body, materialType);
 
-        private Task<IActionResult> SaveDimension(long? projectId, long? subProjectId, long? id, CompatDimensionBody body)
+        private Task<IActionResult> SaveDimension(long? projectId, long? subProjectId, long? id, CompatDimensionBody body, string? materialType)
             => Run(async schema =>
             {
                 // A blank or mistyped measurement is refused rather than silently becoming zero.
@@ -59,7 +66,10 @@ namespace Primworth_API.Controllers.Yard
                 if (!Decimal(body.thickness_mm, out var thickness)) return BadRequest(new { error = "Thickness must be a number." });
                 if (!Decimal(body.tolerance_pct, out var tolerance)) return BadRequest(new { error = "Tolerance must be a number." });
 
-                var input = new YardSizeProfileInput { profile_name = body.name ?? "", length_mm = length, width_mm = width, thickness_mm = thickness, tolerance_pct = tolerance };
+                var materialId = await ResolveMaterialTypeIdAsync(schema, body.material_type_id, materialType);
+                if (materialId is not > 0) return BadRequest(new { error = "A material type is required." });
+
+                var input = new YardSizeProfileInput { profile_name = body.name ?? "", material_type_id = materialId.Value, length_mm = length, width_mm = width, thickness_mm = thickness, tolerance_pct = tolerance };
                 var problem = input.Validate();
                 if (problem != null) return BadRequest(new { error = problem });
 
@@ -177,9 +187,16 @@ namespace Primworth_API.Controllers.Yard
         // ── Request bodies ───────────────────────────────────────────────────────
         public class CompatNamedBody { public string? name { get; set; } public string? description { get; set; } }
 
+        private async Task<long?> ResolveMaterialTypeIdAsync(string schema, long? materialTypeId, string? typeKey)
+        {
+            if (materialTypeId is > 0) return materialTypeId;
+            return await _masters.GetMaterialTypeIdByKeyAsync(schema, typeKey ?? "");
+        }
+
         public class CompatDimensionBody
         {
             public string? name { get; set; }
+            public long? material_type_id { get; set; }
             public string? length_mm { get; set; }
             public string? width_mm { get; set; }
             public string? thickness_mm { get; set; }

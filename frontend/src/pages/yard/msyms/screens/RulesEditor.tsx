@@ -12,6 +12,7 @@ import initZen from '@gorules/zen-engine-wasm';
 import '@gorules/jdm-editor/dist/style.css';
 import { DecisionGraph, JdmConfigProvider, type DecisionGraphType } from '@gorules/jdm-editor';
 import { Save } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { BASE_URL, authGet, authPut } from '../../../../api';
 import type { ApiResponse } from '../../../../types';
 import { quietGorulesConsole } from './quietGorulesConsole';
@@ -49,6 +50,8 @@ function messageFrom(err: unknown): string {
 }
 
 export default function RulesEditor() {
+  const [params] = useSearchParams();
+  const yardTypeId = Number(params.get('yardTypeId')) || 0;
   const graphRef = useRef<DecisionGraphType>(emptyGraph);
   const [initial, setInitial] = useState<DecisionGraphType | null>(null);
   const [saving, setSaving] = useState(false);
@@ -57,10 +60,20 @@ export default function RulesEditor() {
 
   useEffect(() => {
     let cancelled = false;
+    setInitial(null);
+    setNotice('');
+    setError('');
     (async () => {
       try {
         await initZen();
-        const res = await authGet<ApiResponse<DecisionGraphType>>(`${BASE_URL}/api/yard/rules`);
+        if (!yardTypeId) {
+          if (!cancelled) {
+            setError('Open a yard from the menu, then edit rules for that yard.');
+            setInitial(emptyGraph);
+          }
+          return;
+        }
+        const res = await authGet<ApiResponse<DecisionGraphType>>(`${BASE_URL}/api/yard/rules`, { yardTypeId });
         const data = res.data && Array.isArray(res.data.nodes) && Array.isArray(res.data.edges) ? res.data : emptyGraph;
         graphRef.current = data;
         if (!cancelled) setInitial(data);
@@ -73,7 +86,7 @@ export default function RulesEditor() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [yardTypeId]);
 
   const onGraphChange = useCallback((val: DecisionGraphType) => {
     graphRef.current = val;
@@ -84,8 +97,12 @@ export default function RulesEditor() {
     setNotice('');
     setError('');
     try {
-      const res = await authPut<ApiResponse<null>>(`${BASE_URL}/api/yard/rules`, graphRef.current);
-      setNotice(res.message || 'Rules saved.');
+      if (!yardTypeId) {
+        setError('Open a yard from the menu, then save rules for that yard.');
+        return;
+      }
+      const res = await authPut<ApiResponse<null>>(`${BASE_URL}/api/yard/rules?yardTypeId=${yardTypeId}`, graphRef.current);
+      setNotice(res.message || 'Rules saved');
     } catch (err) {
       setError(messageFrom(err));
     } finally {
@@ -103,7 +120,7 @@ export default function RulesEditor() {
           <button
             type="button"
             onClick={save}
-            disabled={saving || !initial}
+            disabled={saving || !initial || !yardTypeId}
             className="flex items-center gap-2 bg-accent text-background font-bold px-4 py-2 uppercase tracking-widest text-xs rounded hover:opacity-80 disabled:opacity-40"
           >
             <Save size={14} /> {saving ? 'Saving' : 'Save'}
@@ -114,7 +131,7 @@ export default function RulesEditor() {
         {initial ? (
           <JdmConfigProvider theme={darkTheme}>
             <ConfigProvider wave={{ disabled: true }}>
-              <DecisionGraph defaultValue={initial} onChange={onGraphChange} customNodes={noCustomNodes} />
+              <DecisionGraph key={yardTypeId} defaultValue={initial} onChange={onGraphChange} customNodes={noCustomNodes} />
             </ConfigProvider>
           </JdmConfigProvider>
         ) : (

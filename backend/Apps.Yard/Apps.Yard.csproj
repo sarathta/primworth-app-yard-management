@@ -11,9 +11,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Jint" Version="3.1.6" />
     <ProjectReference Include="..\Platform.Sdk\Platform.Sdk.csproj" />
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Npgsql" Version="9.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Apps.Yard.Tests" />
   </ItemGroup>
 
 </Project>

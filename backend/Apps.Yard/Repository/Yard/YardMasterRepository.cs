@@ -23,11 +23,18 @@ namespace Primworth_API.Repository.Yard
             return await connection.QueryAsync<YardGradeOption>(Sql(YardMasterQueries.GetGrades, schema));
         }
 
+        public async Task<long?> GetMaterialTypeIdByKeyAsync(string schema, string typeKey)
+        {
+            if (string.IsNullOrWhiteSpace(typeKey)) return null;
+            using var connection = _context.CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<long?>(Sql(YardMasterQueries.GetMaterialTypeIdByKey, schema), new { type_key = typeKey.Trim() });
+        }
+
         // ── Size profiles ────────────────────────────────────────────────────────
-        public async Task<IEnumerable<YardSizeProfile>> GetSizeProfilesAsync(string schema)
+        public async Task<IEnumerable<YardSizeProfile>> GetSizeProfilesAsync(string schema, long? materialTypeId = null)
         {
             using var connection = _context.CreateConnection();
-            return await connection.QueryAsync<YardSizeProfile>(Sql(YardMasterQueries.GetSizeProfiles, schema));
+            return await connection.QueryAsync<YardSizeProfile>(Sql(YardMasterQueries.GetSizeProfiles, schema), new { material_type_id = materialTypeId });
         }
 
         public async Task<long> SaveSizeProfileAsync(string schema, long? id, YardSizeProfileInput input, long userId)
@@ -35,7 +42,8 @@ namespace Primworth_API.Repository.Yard
             using var connection = _context.CreateConnection();
             var p = new
             {
-                id, profile_name = input.profile_name.Trim(), input.length_mm, input.width_mm, input.thickness_mm,
+                id, profile_name = input.profile_name.Trim(), material_type_id = input.material_type_id,
+                input.length_mm, input.width_mm, input.thickness_mm,
                 input.tolerance_pct, input.is_active, user_id = User(userId),
             };
             try

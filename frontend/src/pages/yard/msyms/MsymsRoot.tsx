@@ -46,7 +46,9 @@ export default function MsymsRoot(): React.JSX.Element {
   }
 
   setSymsYardType(yard?.yard_type_id ?? null);
-  setSymsMaterial('');
+  // Inbound ingest still needs a material type. The list APIs are scoped by yard, but
+  // creating a piece cannot guess when the facility stores more than one material.
+  setSymsMaterial(yard ? materialFromYard(yard.yard_type_name).type_key : '');
   setSymsFacilityType(null);
 
   if (!ready || (!subProjectId && (projects.length === 0 || subProjects.length > 0))) {

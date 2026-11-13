@@ -29,6 +29,9 @@ namespace Primworth_API.Models.Yard
         public long material_type_id { get; set; }
         public string? grade_code { get; set; }
         public decimal? weight_kg { get; set; }
+        public decimal? length_mm { get; set; }
+        public decimal? width_mm { get; set; }
+        public decimal? thickness_mm { get; set; }
 
         /// <summary>Raw jsonb text. Read single values with YardAttributes.Number.</summary>
         public string attributes { get; set; } = "{}";
@@ -68,6 +71,10 @@ namespace Primworth_API.Models.Yard
         /// <summary>A standard size from the size profile master; product-mix routing matches on it.</summary>
         public long? size_profile_id { get; set; }
 
+        public decimal? length_mm { get; set; }
+        public decimal? width_mm { get; set; }
+        public decimal? thickness_mm { get; set; }
+
         /// <summary>A JSON object matching the material type's attribute_defs.</summary>
         public JsonElement? attributes { get; set; }
 
@@ -87,6 +94,9 @@ namespace Primworth_API.Models.Yard
     public class YardAllocationResult
     {
         public long item_id { get; set; }
+        public string? item_code { get; set; }
+        public string? heat_number { get; set; }
+        public string? grade_code { get; set; }
         public bool allocated { get; set; }
         public long? work_order_id { get; set; }
         public string? destination { get; set; }

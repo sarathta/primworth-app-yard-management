@@ -218,6 +218,25 @@ CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_movement_log (
 CREATE INDEX IF NOT EXISTS ix_sp_yard_movement_log_item_time
     ON "{schema}".sp_yard_movement_log (item_id, log_timestamp DESC);
 
+-- One GoRules graph per yard type
+CREATE TABLE IF NOT EXISTS "{schema}".sp_rules (
+    rule_id      bigint GENERATED ALWAYS AS IDENTITY,
+    yard_type_id bigint NOT NULL,
+    graph        jsonb NOT NULL DEFAULT '{"nodes":[],"edges":[]}'::jsonb,
+    is_deleted   boolean NOT NULL DEFAULT FALSE,
+    created_by   bigint,
+    created_on   timestamp NOT NULL DEFAULT NOW(),
+    updated_by   bigint,
+    updated_on   timestamp NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_sp_rules PRIMARY KEY (rule_id),
+    CONSTRAINT fk_sp_rules_yard_type_id
+        FOREIGN KEY (yard_type_id) REFERENCES "{schema}".sp_yard_type (yard_type_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_rules_yard_type_id
+    ON "{schema}".sp_rules (yard_type_id);
+
+-- Slab Yard (grade-family stack height) and Billet Yard graphs are seeded by YardProvisioner.
+
 -- CreateSystemConfig
 CREATE TABLE IF NOT EXISTS "{schema}".sp_yard_system_config (
     config_key   varchar(64) NOT NULL,
@@ -240,6 +259,8 @@ SELECT 'SLAB', 'Slab', 'Slabs', 'Slab ID', 'Pit R{row}-C{col}',
          {"key":"target_reheat_c","label":"Reheat target","type":"integer","unit":"C","required":false}]'::jsonb,
        'slab-routing'
 WHERE NOT EXISTS (SELECT 1 FROM "{schema}".sp_yard_material_type WHERE type_key = 'SLAB');
+
+ALTER TABLE "{schema}".sp_yard_item ADD COLUMN IF NOT EXISTS size_profile_id bigint;
 
 INSERT INTO "{schema}".sp_yard_system_config (config_key, config_value)
 SELECT k, v FROM (VALUES ('rule_grade_separation', 'false'), ('max_stack_height', '5')) AS s(k, v)

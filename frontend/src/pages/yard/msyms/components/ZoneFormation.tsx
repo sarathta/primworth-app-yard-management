@@ -67,6 +67,64 @@ function EmptyMark({ shape, className }: { shape: PieceShape; className?: string
     return <div className={`${pieceFrame(shape)} border ${className || 'border-[#2a2a2a]'}`} />;
 }
 
+/** One pit: pieces keep a readable height (like a 6-deep stack). Extra pieces scroll. */
+function PitStackBody({
+    sorted,
+    capacity,
+    topId,
+    searchQuery,
+    materialKey,
+    onOpen,
+}: {
+    sorted: any[];
+    capacity: number;
+    topId: string | null;
+    searchQuery: string;
+    materialKey?: string;
+    onOpen: (slab: any) => void;
+}) {
+    // Highest stack_index is the live top: draw it first so it sits above the rest.
+    const fromTop = sorted.slice().sort((a: any, b: any) => (b.stack_index || 0) - (a.stack_index || 0));
+
+    return (
+        <div className="flex-1 min-h-0 w-full bg-[#050608] border border-[#1a1a1a] rounded overflow-y-auto overflow-x-hidden relative shadow-[inset_0_4px_10px_rgba(0,0,0,0.5)]">
+            {capacity === 0 ? (
+                <div className="absolute inset-0 flex items-center justify-center -rotate-90 text-[10px] tracking-widest font-bold text-danger/30 uppercase">DEAD SPACE</div>
+            ) : (
+                <div className="min-h-full flex flex-col justify-end gap-[3px] p-1">
+                    {fromTop.length === 0 ? (
+                        <div className="h-9 border border-dashed border-[#1a1a1a] rounded opacity-40" />
+                    ) : fromTop.map((slab: any) => {
+                        const f = flags(slab, searchQuery);
+                        const isTop = slab.id === topId;
+                        let bgClass = 'bg-gradient-to-r from-[#216e54] to-accent text-white font-bold';
+                        if (f.isDefect) bgClass = 'bg-gradient-to-r from-danger to-[#8B0000] text-white';
+                        else if (f.isQALocked) bgClass = 'bg-gradient-to-r from-warning/60 to-warning text-black';
+                        else if (f.isStale) bgClass = 'bg-gradient-to-r from-[#6b4c00] to-[#b87d00] text-white font-bold';
+                        const chem = slab.chemistry_data || {};
+                        const reach = isTop ? 'Take this' : 'Dig to reach';
+                        const tooltipText = `${reach}\nID: ${slab.id}\nHeat: ${slab.heat_number}\nGrade: ${chem.grade || 'Standard'}\nTarget Reheat: ${slab.target_reheat_temp ? slab.target_reheat_temp + '°C' : 'N/A'}\nRolling Width: ${slab.rolling_width || 'N/A'}mm\nCast Time: ${slab.cast_time ? new Date(slab.cast_time).toLocaleString() : 'N/A'}${f.isHot ? '\nHot charge ready' : ''}${f.isStale ? '\nStale' : ''}${f.isQALocked ? '\nQA hold' : ''}`;
+                        const shape = shapeOf(slab, materialKey);
+                        const onPiece = shape === 'slab' || shape === 'plate' || shape === 'billet';
+                        return (
+                            <div key={slab.id} className="w-full h-9 flex items-center justify-center shrink-0">
+                                <div onClick={() => onOpen(slab)} title={tooltipText}
+                                    className={`${pieceInStack(shape)} flex items-center justify-center overflow-hidden shadow-[inset_0_-2px_5px_rgba(0,0,0,0.6)] border cursor-pointer hover:brightness-125 transition-all ${bgClass} ${isTop ? 'border-[#3b82f6] ring-2 ring-[#3b82f6]' : 'border-[#000] opacity-80'} ${f.matches ? 'ring-2 ring-white scale-[1.03] z-10' : ''}`}>
+                                    <div className="font-black text-[9px] tracking-widest font-mono select-none overflow-hidden flex items-center gap-0.5 px-0.5">
+                                        {f.isHot && <Flame size={9} className="text-[#ff4500] shrink-0" />}
+                                        {f.isStale && <Clock size={8} className="shrink-0" />}
+                                        {onPiece && <span className="truncate">{f.label}</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function StackFormation(props: ZoneFormationProps) {
     const { columns, colsCount, isFullscreen, isEditMode, editCaps, setEditCaps, formatStackName, onOpen, onSaveColumn, searchQuery, materialKey } = props;
     return (
@@ -103,43 +161,14 @@ function StackFormation(props: ZoneFormationProps) {
                                     <div className={`text-[10px] font-mono tracking-widest ${sorted.length >= col.capacity_limit ? 'text-danger' : 'text-success'}`}>{sorted.length} / {col.capacity_limit}</div>
                                 )}
                             </div>
-                            <div className="flex-1 w-full bg-[#050608] border border-[#1a1a1a] rounded flex flex-col-reverse justify-start p-1 overflow-y-auto overflow-x-hidden relative shadow-[inset_0_4px_10px_rgba(0,0,0,0.5)] thin-scrollbar">
-                                {col.capacity_limit === 0 ? (
-                                    <div className="absolute inset-0 flex items-center justify-center -rotate-90 text-[10px] tracking-widest font-bold text-danger/30 uppercase">DEAD SPACE</div>
-                                ) : sorted.length === 0 ? (
-                                    <div className="absolute inset-0 flex flex-col justify-end">
-                                        {[...Array(col.capacity_limit)].map((_, idx) => (
-                                            <div key={idx} style={{ height: `${100 / col.capacity_limit}%` }} className="w-full mb-[2px] border-b border-dashed border-[#1a1a1a] opacity-30" />
-                                        ))}
-                                    </div>
-                                ) : (
-                                    sorted.map((slab: any) => {
-                                        const f = flags(slab, searchQuery);
-                                        const isTop = slab.id === topId;
-                                        let bgClass = 'bg-gradient-to-r from-[#216e54] to-accent text-white font-bold';
-                                        if (f.isDefect) bgClass = 'bg-gradient-to-r from-danger to-[#8B0000] text-white';
-                                        else if (f.isQALocked) bgClass = 'bg-gradient-to-r from-warning/60 to-warning text-black';
-                                        else if (f.isStale) bgClass = 'bg-gradient-to-r from-[#6b4c00] to-[#b87d00] text-white font-bold';
-                                        const chem = slab.chemistry_data || {};
-                                        const reach = isTop ? 'Take this' : 'Dig to reach';
-                                        const tooltipText = `${reach}\nID: ${slab.id}\nHeat: ${slab.heat_number}\nGrade: ${chem.grade || 'Standard'}\nTarget Reheat: ${slab.target_reheat_temp ? slab.target_reheat_temp + '°C' : 'N/A'}\nRolling Width: ${slab.rolling_width || 'N/A'}mm\nCast Time: ${slab.cast_time ? new Date(slab.cast_time).toLocaleString() : 'N/A'}${f.isHot ? '\nHot charge ready' : ''}${f.isStale ? '\nStale' : ''}${f.isQALocked ? '\nQA hold' : ''}`;
-                                        const shape = shapeOf(slab, materialKey);
-                                        const onPiece = shape === 'slab' || shape === 'plate' || shape === 'billet';
-                                        return (
-                                            <div key={slab.id} style={{ height: `${100 / col.capacity_limit}%` }} className="w-full mb-[3px] flex items-center justify-center shrink-0">
-                                                <div onClick={() => onOpen(slab)} title={tooltipText}
-                                                    className={`${pieceInStack(shape)} flex items-center justify-center overflow-hidden shadow-[inset_0_-2px_5px_rgba(0,0,0,0.6)] border cursor-pointer hover:brightness-125 transition-all ${bgClass} ${isTop ? 'border-[#3b82f6] ring-2 ring-[#3b82f6]' : 'border-[#000] opacity-80'} ${f.matches ? 'ring-2 ring-white scale-[1.03] z-10' : ''}`}>
-                                                    <div className="font-black text-[9px] tracking-widest font-mono select-none overflow-hidden flex items-center gap-0.5 px-0.5">
-                                                        {f.isHot && <Flame size={9} className="text-[#ff4500] shrink-0" />}
-                                                        {f.isStale && <Clock size={8} className="shrink-0" />}
-                                                        {onPiece && <span className="truncate">{f.label}</span>}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })
-                                )}
-                            </div>
+                            <PitStackBody
+                                sorted={sorted}
+                                capacity={col.capacity_limit}
+                                topId={topId}
+                                searchQuery={searchQuery}
+                                materialKey={materialKey}
+                                onOpen={onOpen}
+                            />
                         </div>
                     );
                 })}

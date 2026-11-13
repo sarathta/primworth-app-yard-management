@@ -44,6 +44,24 @@ namespace Primworth_API.Repository.Yard
              ]
              """,
              "slab-routing"),
+            ("BILLET", "Billet", "Billets", "Billet ID", "Pit R{row}-C{col}",
+             """
+             [
+               {"key":"length_mm","label":"Length","type":"number","unit":"mm","required":false},
+               {"key":"width_mm","label":"Width","type":"number","unit":"mm","required":false},
+               {"key":"thickness_mm","label":"Thickness","type":"number","unit":"mm","required":false}
+             ]
+             """,
+             "billet-routing"),
+            ("PLATE", "Plate", "Plates", "Plate ID", "Pit R{row}-C{col}",
+             """
+             [
+               {"key":"length_mm","label":"Length","type":"number","unit":"mm","required":false},
+               {"key":"width_mm","label":"Width","type":"number","unit":"mm","required":false},
+               {"key":"thickness_mm","label":"Thickness","type":"number","unit":"mm","required":false}
+             ]
+             """,
+             "plate-routing"),
             // Add the next material here, or type it into the Masters UI on a live facility:
             // ("TMT_BUNDLE", "Bundle", "Bundles", "Bundle number", "Rack {row}, slot {col}", "[...]", "tmt_bundle-routing"),
         };
@@ -97,6 +115,7 @@ namespace Primworth_API.Repository.Yard
             ("sp_yard_product_mix_grade",  "Yard - Product Mix Grades","Grades allowed by a product mix."),
             ("sp_yard_product_mix_size",   "Yard - Product Mix Sizes", "Size profiles allowed by a product mix."),
             ("sp_yard_system_log",         "Yard - Activity Log",      "User and system actions for audit."),
+            ("sp_rules",                   "Yard - Rules",             "GoRules decision graph per yard type."),
         };
 
         public async Task ProvisionAsync(ApplicationProvisionContext ctx)
@@ -118,6 +137,7 @@ namespace Primworth_API.Repository.Yard
             await ExecuteAsync(ctx, YardDdl.CreateMovementLog, schema);
             await ExecuteAsync(ctx, YardDdl.CreateSystemLog, schema);
             await ExecuteAsync(ctx, YardDdl.CreateSystemConfig, schema);
+            await ExecuteAsync(ctx, YardDdl.CreateRules, schema);
             await ExecuteAsync(ctx, YardDdl.AddLaterColumns, schema);
 
             foreach (var mt in MaterialTypes)
@@ -131,6 +151,19 @@ namespace Primworth_API.Repository.Yard
 
             foreach (var (name, description) in YardTypes)
                 await ExecuteAsync(ctx, YardDdl.SeedYardType, schema, new { yard_type_name = name, description });
+
+            await ExecuteAsync(ctx, YardDdl.SeedSlabYardRules, schema, new
+            {
+                yard_type_name = YardStackingGraph.SlabYard,
+                graph = YardStackingGraph.Slab,
+                user_id = userId,
+            });
+            await ExecuteAsync(ctx, YardDdl.SeedYardRules, schema, new
+            {
+                yard_type_name = YardStackingGraph.BilletYard,
+                graph = YardStackingGraph.For("Billet stacking"),
+                user_id = userId,
+            });
 
             foreach (var (key, value) in DefaultConfig)
                 await ExecuteAsync(ctx, YardDdl.SeedConfig, schema, new { config_key = key, config_value = value, user_id = userId });
@@ -152,6 +185,7 @@ namespace Primworth_API.Repository.Yard
             Editable("sp_yard_material_type"),
             Editable("sp_yard_size_profile"),
             Editable("sp_yard_rework_activity"),
+            new SchemaTableConfig { to = "sub_project", type = "tablename", to_copy = "sp_rules", editable = false, open_table = true, hide = false, droppable = true },
             new SchemaTableConfig { to = "sub_project", type = "prefix", to_copy = "sp_yard_", editable = false, open_table = true, hide = false, droppable = true },
         };
 

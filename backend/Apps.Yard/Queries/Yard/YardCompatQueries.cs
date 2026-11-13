@@ -120,6 +120,13 @@ namespace Primworth_API.Queries.Yard
         public const string GetWorkOrders = @"
             SELECT w.work_order_id, w.order_type, w.order_status, w.created_on, w.completed_at, w.rework_activity_id, w.flag_reason,
                    i.item_id, i.item_code, i.heat_number, i.quality_status, i.item_status, i.grade_code, i.stack_index,
+                   CASE WHEN jsonb_typeof(i.attributes->'length_mm') = 'number' THEN (i.attributes->>'length_mm')::numeric
+                        WHEN i.attributes->>'length_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'length_mm')::numeric END AS length_mm,
+                   CASE WHEN jsonb_typeof(i.attributes->'width_mm') = 'number' THEN (i.attributes->>'width_mm')::numeric
+                        WHEN i.attributes->>'width_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'width_mm')::numeric END AS width_mm,
+                   CASE WHEN jsonb_typeof(i.attributes->'thickness_mm') = 'number' THEN (i.attributes->>'thickness_mm')::numeric
+                        WHEN i.attributes->>'thickness_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'thickness_mm')::numeric END AS thickness_mm,
+                   i.size_profile_id,
                    " + Temperature + @" AS temperature_state,
                    sz.zone_id AS source_zone_id, sz.zone_name AS source_zone_name, sz.zone_purpose AS source_zone_purpose,
                    dz.zone_id AS destination_zone_id, dz.zone_name AS destination_zone_name, dz.zone_purpose AS destination_zone_purpose,

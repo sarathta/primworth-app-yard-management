@@ -19,7 +19,9 @@ namespace Primworth_API.IRepository
         Task<YardItem?> GetItemByIdAsync(string schema, long itemId);
 
         /// <summary>Validates the attributes against the material type, inserts, and (by default) allocates.</summary>
-        Task<YardAllocationResult> CreateItemAsync(string schema, YardItemInput input, long userId);
+        /// <param name="yardTypeId">When set, inbound placement stays inside that yard.</param>
+        /// <param name="requireAllocated">When true, refuse instead of holding the item if no slot is free.</param>
+        Task<YardAllocationResult> CreateItemAsync(string schema, YardItemInput input, long userId, long? yardTypeId = null, bool requireAllocated = false);
 
         Task<bool> SetQualityAsync(string schema, long itemId, string qualityStatus, long userId);
 

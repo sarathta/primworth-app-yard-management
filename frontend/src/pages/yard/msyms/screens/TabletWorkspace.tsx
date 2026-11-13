@@ -17,6 +17,20 @@ export const TabletWorkspace: React.FC = () => {
     // Which order the operator is currently writing a reason for, and what they have typed.
     const [flagging, setFlagging] = useState<string | null>(null);
     const [flagReason, setFlagReason] = useState('');
+    const [raising, setRaising] = useState(false);
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [grades, setGrades] = useState<{ code: string; name?: string }[]>([]);
+    const [sizes, setSizes] = useState<{ id: number; name: string; length_mm: number; width_mm: number; thickness_mm: number }[]>([]);
+    const [form, setForm] = useState({
+        grade_code: '',
+        size_profile_id: '',
+        length_mm: '',
+        width_mm: '',
+        thickness_mm: '',
+        heat_number: '',
+        item_code: '',
+        weight_kg: '',
+    });
 
     const fetchRules = async () => {
         if (!token) return;
@@ -30,8 +44,24 @@ export const TabletWorkspace: React.FC = () => {
         if (res.ok) setOrders(await res.json());
     };
 
+    const fetchMasters = async () => {
+        if (!token) return;
+        const [g, d] = await Promise.all([
+            symsFetch('http://localhost:4000/api/masters/grades', { headers: { Authorization: `Bearer ${token}` } }),
+            symsFetch('http://localhost:4000/api/masters/dimensions', { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (g.ok) {
+            const list = await g.json();
+            setGrades(Array.isArray(list) ? list : []);
+        }
+        if (d.ok) {
+            const list = await d.json();
+            setSizes(Array.isArray(list) ? list.filter((x: { is_active?: boolean }) => x.is_active !== false) : []);
+        }
+    };
+
     useEffect(() => {
-        fetchOrders(); fetchRules();
+        fetchOrders(); fetchRules(); fetchMasters();
         if (socket) {
             socket.on('workorder:new', fetchOrders);
             socket.on('workorder:completed', fetchOrders);
@@ -88,6 +118,57 @@ export const TabletWorkspace: React.FC = () => {
         setAuditScans(prev => ({ ...prev, [orderId]: prev[orderId].filter((_, i) => i !== idx) }));
     };
 
+    const applySize = (id: string) => {
+        const size = sizes.find(s => String(s.id) === id);
+        setForm(f => ({
+            ...f,
+            size_profile_id: id,
+            length_mm: size ? String(size.length_mm) : f.length_mm,
+            width_mm: size ? String(size.width_mm) : f.width_mm,
+            thickness_mm: size ? String(size.thickness_mm) : f.thickness_mm,
+        }));
+    };
+
+    const raiseInbound = async () => {
+        if (!form.grade_code) {
+            setNotice({ tone: 'bad', text: 'Choose a grade. Stacking keeps one grade per pit.' });
+            return;
+        }
+        if (!form.size_profile_id || !form.length_mm || !form.width_mm) {
+            setNotice({ tone: 'bad', text: 'Choose size, length and width. Longer and wider pieces are stacked below.' });
+            return;
+        }
+        setRaising(true);
+        setNotice(null);
+        try {
+            const res = await symsFetch('http://localhost:4000/api/workorders/inbound', {
+                method: 'POST',
+                body: JSON.stringify({
+                    grade_code: form.grade_code,
+                    size_profile_id: Number(form.size_profile_id),
+                    length_mm: Number(form.length_mm),
+                    width_mm: Number(form.width_mm),
+                    thickness_mm: form.thickness_mm ? Number(form.thickness_mm) : undefined,
+                    heat_number: form.heat_number.trim() || undefined,
+                    item_code: form.item_code.trim() || undefined,
+                    weight_kg: form.weight_kg ? Number(form.weight_kg) : undefined,
+                }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setNotice({ tone: 'ok', text: data.message || 'Inbound order queued: pick up from EXTERNAL.' });
+                setComposeOpen(false);
+                fetchOrders();
+            } else {
+                setNotice({ tone: 'bad', text: await symsError(res, 'Could not raise that inbound order.') });
+            }
+        } catch {
+            setNotice({ tone: 'bad', text: 'Could not reach the yard. Nothing was changed.' });
+        } finally {
+            setRaising(false);
+        }
+    };
+
     const toggleQALock = async (id: string, lock: boolean) => {
         const res = await symsFetch(`http://localhost:4000/api/workorders/${id}/qa-lock`, {
             method: 'PUT',
@@ -108,10 +189,123 @@ export const TabletWorkspace: React.FC = () => {
                     </h1>
                     <div className="text-xs text-secondary mt-1">Ground Operator Interface</div>
                 </div>
-                <div className={`px-4 py-2 rounded font-bold text-xs tracking-widest ${connected ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'}`}>
-                    {connected ? 'SYNCED' : 'OFFLINE'}
+                <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => { setComposeOpen(o => !o); setNotice(null); }}
+                        className="flex items-center gap-2 bg-accent text-background font-black uppercase tracking-widest text-xs px-4 py-2 rounded hover:opacity-90 active:scale-95"
+                    >
+                        <Plus size={16} /> Generate work order
+                    </button>
+                    <div className={`px-4 py-2 rounded font-bold text-xs tracking-widest ${connected ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'}`}>
+                        {connected ? 'SYNCED' : 'OFFLINE'}
+                    </div>
                 </div>
             </div>
+
+            {composeOpen && (
+                <div className="mb-4 bg-primary border border-[#333] rounded-xl p-4">
+                    <div className="text-xs font-black uppercase tracking-widest text-accent mb-1">New inbound</div>
+                    <p className="text-[11px] text-secondary mb-4">
+                        Grade, size, length and width are required. The yard will only queue a drop onto a pit of the same grade and size, with a longer and wider piece already below.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Grade</span>
+                            <select
+                                value={form.grade_code}
+                                onChange={e => setForm(f => ({ ...f, grade_code: e.target.value }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white"
+                            >
+                                <option value="">Select grade</option>
+                                {grades.map(g => (
+                                    <option key={g.code} value={g.code}>{g.code}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Size</span>
+                            <select
+                                value={form.size_profile_id}
+                                onChange={e => applySize(e.target.value)}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white"
+                            >
+                                <option value="">Select size</option>
+                                {sizes.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name} ({s.length_mm}×{s.width_mm})</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Heat no. (optional)</span>
+                            <input
+                                value={form.heat_number}
+                                onChange={e => setForm(f => ({ ...f, heat_number: e.target.value.toUpperCase() }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white font-mono"
+                                placeholder="H-00001"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Length mm</span>
+                            <input
+                                value={form.length_mm}
+                                onChange={e => setForm(f => ({ ...f, length_mm: e.target.value }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white font-mono"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Width mm</span>
+                            <input
+                                value={form.width_mm}
+                                onChange={e => setForm(f => ({ ...f, width_mm: e.target.value }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white font-mono"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Thickness mm</span>
+                            <input
+                                value={form.thickness_mm}
+                                onChange={e => setForm(f => ({ ...f, thickness_mm: e.target.value }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white font-mono"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Item code (optional)</span>
+                            <input
+                                value={form.item_code}
+                                onChange={e => setForm(f => ({ ...f, item_code: e.target.value.toUpperCase() }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white font-mono"
+                                placeholder="SL-0001"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="block text-[10px] uppercase tracking-widest text-secondary mb-1">Weight kg (optional)</span>
+                            <input
+                                value={form.weight_kg}
+                                onChange={e => setForm(f => ({ ...f, weight_kg: e.target.value }))}
+                                className="w-full bg-[#0B0C10] border border-[#333] rounded px-3 py-2 text-sm text-white font-mono"
+                            />
+                        </label>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                        <button
+                            type="button"
+                            disabled={raising}
+                            onClick={raiseInbound}
+                            className="flex items-center gap-2 bg-accent disabled:opacity-40 text-background font-black uppercase tracking-widest text-xs px-4 py-2 rounded"
+                        >
+                            <Plus size={16} /> {raising ? 'Queuing...' : 'Generate'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setComposeOpen(false)}
+                            className="px-4 py-2 border border-[#333] text-secondary rounded font-bold uppercase tracking-widest text-xs"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {notice && (
                 <div className={`mb-4 px-4 py-3 rounded border text-xs font-bold tracking-wide ${
@@ -163,9 +357,19 @@ export const TabletWorkspace: React.FC = () => {
                     return (
                         <div key={order.id} className="bg-primary rounded-xl border-l-8 border-accent p-6 flex flex-col md:flex-row justify-between items-center shadow-lg">
                             <div className="w-full md:w-auto mb-6 md:mb-0">
-                                <div className="text-xs font-bold text-secondary uppercase tracking-widest mb-1 flex items-center">
+                                <div className="text-xs font-bold text-secondary uppercase tracking-widest mb-1 flex items-center flex-wrap gap-2">
                                     {order.type} ORDER
-                                    <span className="ml-3 px-2 py-0.5 bg-[#111] rounded text-accent">{order.item.heat_number}</span>
+                                    {order.item.item_code && (
+                                        <span className="px-2 py-0.5 bg-[#111] rounded text-accent">{order.item.item_code}</span>
+                                    )}
+                                    {order.item.grade_code && (
+                                        <span className="px-2 py-0.5 bg-[#111] rounded text-secondary">{order.item.grade_code}</span>
+                                    )}
+                                    {(order.item.length_mm || order.item.width_mm) && (
+                                        <span className="px-2 py-0.5 bg-[#111] rounded text-secondary">
+                                            {order.item.length_mm}×{order.item.width_mm} mm
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="text-4xl font-black font-mono tracking-wider mt-2 mb-4">
                                     {order.item.heat_number || order.item.id} <span className="text-sm font-sans text-secondary tracking-widest font-normal uppercase">Heat No.</span>

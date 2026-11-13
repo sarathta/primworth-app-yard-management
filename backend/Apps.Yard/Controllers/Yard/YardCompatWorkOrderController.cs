@@ -16,16 +16,18 @@ namespace Primworth_API.Controllers.Yard
         private readonly IYardCompatRepository _compat;
         private readonly IYardWorkOrderRepository _orders;
         private readonly IYardItemRepository _items;
+        private readonly IYardMasterRepository _masters;
         private readonly IYardZoneRepository _zones;
         private readonly IRolePermissionReader _permissions;
 
         public YardCompatWorkOrderController(IYardCompatRepository compat, IYardWorkOrderRepository orders, IYardItemRepository items,
-            IYardZoneRepository zones, IRolePermissionReader permissions, IYardSchemaContext schema, ILogger<YardCompatWorkOrderController> logger)
+            IYardMasterRepository masters, IYardZoneRepository zones, IRolePermissionReader permissions, IYardSchemaContext schema, ILogger<YardCompatWorkOrderController> logger)
             : base(schema, logger)
         {
             _compat = compat;
             _orders = orders;
             _items = items;
+            _masters = masters;
             _zones = zones;
             _permissions = permissions;
         }
@@ -48,12 +50,65 @@ namespace Primworth_API.Controllers.Yard
                 {
                     id = r.item_id.ToString(), item_code = r.item_code, heat_number = r.heat_number, quality_status = r.quality_status,
                     status = r.item_status, grade_code = r.grade_code, stack_index = r.stack_index, temperature_state = r.temperature_state,
+                    length_mm = r.length_mm, width_mm = r.width_mm, thickness_mm = r.thickness_mm, size_profile_id = r.size_profile_id,
                 },
                 source_zone = Zone(r.source_zone_id, r.source_zone_name, r.source_zone_purpose),
                 destination_zone = Zone(r.destination_zone_id, r.destination_zone_name, r.destination_zone_purpose),
                 source_column = Column(r.source_position_id, r.source_row_index, r.source_col_index),
                 destination_column = Column(r.destination_position_id, r.destination_row_index, r.destination_col_index),
             })), projectId, subProjectId, Array.Empty<object>());
+
+        /// <summary>
+        /// POST compat/workorders/inbound: the operator raises a pickup from outside the yard
+        /// into the first free slot on the open yard.
+        /// </summary>
+        [RequiresPermission(Operator)]
+        [HttpPost("inbound")]
+        public Task<IActionResult> CreateInbound([FromQuery] long? projectId, [FromQuery] long? subProjectId, [FromQuery] string? materialType, [FromQuery] long? yardTypeId, [FromBody] CompatInboundBody? body)
+            => Run(async schema =>
+            {
+                var grades = (await _masters.GetGradesAsync(schema))
+                    .Select(g => g.grade_code?.Trim())
+                    .Where(c => !string.IsNullOrWhiteSpace(c))
+                    .ToList();
+                if (grades.Count == 0)
+                    return BadRequest(new { error = "No grades in the grade master." });
+
+                var grade = body?.grade_code?.Trim();
+                if (string.IsNullOrWhiteSpace(grade))
+                    return BadRequest(new { error = "Choose a grade so the piece can be stacked with matching material." });
+                if (!grades.Any(g => string.Equals(g, grade, StringComparison.OrdinalIgnoreCase)))
+                    return BadRequest(new { error = $"Grade '{grade}' is not in the grade master." });
+
+                var result = await _items.CreateItemAsync(schema, new YardItemInput
+                {
+                    item_code = body?.item_code ?? "",
+                    heat_number = body?.heat_number,
+                    material_type_key = materialType,
+                    grade_code = grade,
+                    size_profile_id = body?.size_profile_id,
+                    length_mm = body?.length_mm,
+                    width_mm = body?.width_mm,
+                    thickness_mm = body?.thickness_mm,
+                    weight_kg = body?.weight_kg,
+                    allocate = true,
+                }, Schema.CurrentUserId(), yardTypeId, requireAllocated: true);
+
+                var message = result.allocated
+                    ? $"Inbound queued: {result.item_code} (heat {result.heat_number}, grade {grade}, {body?.length_mm}×{body?.width_mm} mm). Pick up from EXTERNAL, drop at {result.destination}."
+                    : result.reason ?? "The inbound could not be placed.";
+                return Ok(new
+                {
+                    ok = true,
+                    message,
+                    work_order_id = result.work_order_id?.ToString(),
+                    destination = result.destination,
+                    item_code = result.item_code,
+                    heat_number = result.heat_number,
+                    grade_code = grade,
+                    destination_obeys_stacking = true,
+                });
+            }, projectId, subProjectId);
 
         /// <summary>PUT compat/workorders/{id}/complete. The tablet sends scanned ids for audits; there are none yet, so the body is ignored.</summary>
         [RequiresPermission(Operator)]
@@ -147,6 +202,17 @@ namespace Primworth_API.Controllers.Yard
                 return Ok(new { ok = true, message, work_orders = orders.Select(o => o.ToString()) });
             }, projectId, subProjectId);
 
+        public class CompatInboundBody
+        {
+            public string? heat_number { get; set; }
+            public string? item_code { get; set; }
+            public string? grade_code { get; set; }
+            public long? size_profile_id { get; set; }
+            public decimal? length_mm { get; set; }
+            public decimal? width_mm { get; set; }
+            public decimal? thickness_mm { get; set; }
+            public decimal? weight_kg { get; set; }
+        }
         public class CompatReasonBody { public string? reason { get; set; } }
         public class CompatQaBody { public bool locked { get; set; } }
         public class CompatReworkBody { public long rework_activity_id { get; set; } }

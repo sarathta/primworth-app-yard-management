@@ -28,6 +28,6 @@ export function pieceInStack(shape: PieceShape): string {
         case 'billet': return 'h-[72%] w-[58%] rounded-sm';
         case 'plate': return 'h-[36%] w-[94%] rounded-sm';
         case 'square': return 'h-[78%] aspect-square max-w-full rounded-sm';
-        default: return 'h-[64%] w-[94%] rounded-sm';
+        default: return 'h-[86%] w-[96%] rounded-sm';
     }
 }

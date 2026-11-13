@@ -8,7 +8,8 @@ namespace Primworth_API.IRepository
     {
         Task<IEnumerable<YardGradeOption>> GetGradesAsync(string schema);
 
-        Task<IEnumerable<YardSizeProfile>> GetSizeProfilesAsync(string schema);
+        Task<long?> GetMaterialTypeIdByKeyAsync(string schema, string typeKey);
+        Task<IEnumerable<YardSizeProfile>> GetSizeProfilesAsync(string schema, long? materialTypeId = null);
         Task<long> SaveSizeProfileAsync(string schema, long? id, YardSizeProfileInput input, long userId);
         Task<bool> DeleteSizeProfileAsync(string schema, long id, long userId);
 

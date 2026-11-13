@@ -11,20 +11,27 @@ namespace Primworth_API.Queries.Yard
         public const string GetGrades = @"
             SELECT id, grade_code, description FROM ""{schema}"".gm_grade ORDER BY grade_code;";
 
+        public const string GetMaterialTypeIdByKey = @"
+            SELECT material_type_id FROM ""{schema}"".sp_yard_material_type
+            WHERE LOWER(type_key) = LOWER(@type_key) AND is_deleted = FALSE;";
+
         // ── Size profiles ────────────────────────────────────────────────────────
         public const string GetSizeProfiles = @"
             SELECT size_profile_id, profile_name, material_type_id, length_mm, width_mm, thickness_mm, tolerance_pct, is_active
-            FROM ""{schema}"".sp_yard_size_profile WHERE is_deleted = FALSE ORDER BY profile_name;";
+            FROM ""{schema}"".sp_yard_size_profile
+            WHERE is_deleted = FALSE
+              AND (@material_type_id IS NULL OR material_type_id = @material_type_id)
+            ORDER BY profile_name;";
 
         public const string InsertSizeProfile = @"
             INSERT INTO ""{schema}"".sp_yard_size_profile
-                (profile_name, length_mm, width_mm, thickness_mm, tolerance_pct, is_active, created_by, created_on, updated_by, updated_on)
-            VALUES (@profile_name, @length_mm, @width_mm, @thickness_mm, @tolerance_pct, @is_active, @user_id, NOW(), @user_id, NOW())
+                (profile_name, material_type_id, length_mm, width_mm, thickness_mm, tolerance_pct, is_active, created_by, created_on, updated_by, updated_on)
+            VALUES (@profile_name, @material_type_id, @length_mm, @width_mm, @thickness_mm, @tolerance_pct, @is_active, @user_id, NOW(), @user_id, NOW())
             RETURNING size_profile_id;";
 
         public const string UpdateSizeProfile = @"
             UPDATE ""{schema}"".sp_yard_size_profile
-               SET profile_name = @profile_name, length_mm = @length_mm, width_mm = @width_mm, thickness_mm = @thickness_mm,
+               SET profile_name = @profile_name, material_type_id = @material_type_id, length_mm = @length_mm, width_mm = @width_mm, thickness_mm = @thickness_mm,
                    tolerance_pct = @tolerance_pct, is_active = @is_active, updated_by = @user_id, updated_on = NOW()
              WHERE size_profile_id = @id AND is_deleted = FALSE;";
 

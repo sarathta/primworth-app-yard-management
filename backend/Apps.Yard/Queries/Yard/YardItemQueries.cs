@@ -5,6 +5,12 @@ namespace Primworth_API.Queries.Yard
     {
         private const string Select = @"
             SELECT i.item_id, i.item_code, i.heat_number, i.material_type_id, i.grade_code, i.weight_kg,
+                   CASE WHEN jsonb_typeof(i.attributes->'length_mm') = 'number' THEN (i.attributes->>'length_mm')::numeric
+                        WHEN i.attributes->>'length_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'length_mm')::numeric END AS length_mm,
+                   CASE WHEN jsonb_typeof(i.attributes->'width_mm') = 'number' THEN (i.attributes->>'width_mm')::numeric
+                        WHEN i.attributes->>'width_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'width_mm')::numeric END AS width_mm,
+                   CASE WHEN jsonb_typeof(i.attributes->'thickness_mm') = 'number' THEN (i.attributes->>'thickness_mm')::numeric
+                        WHEN i.attributes->>'thickness_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'thickness_mm')::numeric END AS thickness_mm,
                    i.attributes::text AS attributes, i.item_status, i.quality_status,
                    i.zone_id, i.position_id, i.stack_index, i.arrived_on, i.is_virtual, i.size_profile_id, i.updated_on,
                    mt.type_key, z.zone_name, z.storage_style, p.row_index, p.col_index
@@ -29,10 +35,34 @@ namespace Primworth_API.Queries.Yard
         public const string GetItemByCode = Select + @"
             WHERE LOWER(i.item_code) = LOWER(@item_code) AND i.is_deleted = FALSE;";
 
+        /// <summary>
+        /// Highest trailing numbers already used for this item prefix (SL-4113) and for heats (H-40816).
+        /// Zero when nothing matches, so the first generated code is PREFIX-0001 / H-00001.
+        /// </summary>
+        public const string GetNextInboundSerials = @"
+            SELECT
+                COALESCE((
+                    SELECT MAX(CAST(substring(item_code from '[0-9]+$') AS int))
+                    FROM ""{schema}"".sp_yard_item
+                    WHERE is_deleted = FALSE
+                      AND item_code ~ ('^' || @item_prefix || '-[0-9]+$')
+                ), 0) AS last_item,
+                COALESCE((
+                    SELECT MAX(CAST(substring(heat_number from '[0-9]+$') AS int))
+                    FROM ""{schema}"".sp_yard_item
+                    WHERE is_deleted = FALSE
+                      AND heat_number ~ '^H-[0-9]+$'
+                ), 0) AS last_heat;";
+
         /// <summary>Items stacked above a given one in the same position, top first: the dig list.</summary>
         public const string GetItemsAbove = Select + @"
             WHERE i.position_id = @position_id AND i.is_deleted = FALSE AND i.stack_index > @stack_index
             ORDER BY i.stack_index DESC;";
+
+        public const string GetSizeProfileById = @"
+            SELECT size_profile_id, profile_name, material_type_id, length_mm, width_mm, thickness_mm, tolerance_pct, is_active
+            FROM ""{schema}"".sp_yard_size_profile
+            WHERE size_profile_id = @size_profile_id AND is_deleted = FALSE;";
 
         public const string InsertItem = @"
             INSERT INTO ""{schema}"".sp_yard_item
@@ -100,7 +130,12 @@ namespace Primworth_API.Queries.Yard
             SELECT p.position_id, p.zone_id, z.zone_name, z.zone_purpose, z.storage_style,
                    p.row_index, p.col_index, p.capacity_limit,
                    COALESCE(s.occupied, 0) + COALESCE(o.pending, 0) AS occupied,
-                   s.top_grade, s.distinct_grades
+                   COALESCE(q.grade_code, s.top_grade) AS top_grade,
+                   s.distinct_grades,
+                   COALESCE(q.size_profile_id, s.top_size_profile_id) AS top_size_profile_id,
+                   COALESCE(q.length_mm, s.top_length_mm) AS top_length_mm,
+                   COALESCE(q.width_mm, s.top_width_mm) AS top_width_mm,
+                   COALESCE(q.thickness_mm, s.top_thickness_mm) AS top_thickness_mm
             FROM ""{schema}"".sp_yard_position p
             JOIN ""{schema}"".sp_yard_zone z
               ON z.zone_id = p.zone_id AND z.is_active = TRUE AND z.is_deleted = FALSE
@@ -109,20 +144,45 @@ namespace Primworth_API.Queries.Yard
             LEFT JOIN (
                 SELECT position_id, COUNT(*) AS occupied,
                        (ARRAY_AGG(COALESCE(NULLIF(TRIM(grade_code), ''), 'Standard') ORDER BY stack_index DESC))[1] AS top_grade,
+                       (ARRAY_AGG(size_profile_id ORDER BY stack_index DESC))[1] AS top_size_profile_id,
+                       (ARRAY_AGG(CASE WHEN jsonb_typeof(attributes->'length_mm') = 'number' THEN (attributes->>'length_mm')::numeric
+                                       WHEN attributes->>'length_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (attributes->>'length_mm')::numeric END ORDER BY stack_index DESC))[1] AS top_length_mm,
+                       (ARRAY_AGG(CASE WHEN jsonb_typeof(attributes->'width_mm') = 'number' THEN (attributes->>'width_mm')::numeric
+                                       WHEN attributes->>'width_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (attributes->>'width_mm')::numeric END ORDER BY stack_index DESC))[1] AS top_width_mm,
+                       (ARRAY_AGG(CASE WHEN jsonb_typeof(attributes->'thickness_mm') = 'number' THEN (attributes->>'thickness_mm')::numeric
+                                       WHEN attributes->>'thickness_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (attributes->>'thickness_mm')::numeric END ORDER BY stack_index DESC))[1] AS top_thickness_mm,
                        STRING_AGG(DISTINCT COALESCE(NULLIF(TRIM(grade_code), ''), 'Standard'), ',') AS distinct_grades
                 FROM ""{schema}"".sp_yard_item
                 WHERE is_deleted = FALSE AND position_id IS NOT NULL
                 GROUP BY position_id
             ) s ON s.position_id = p.position_id
             LEFT JOIN (
-                SELECT destination_position_id, COUNT(*) AS pending
-                FROM ""{schema}"".sp_yard_work_order
-                WHERE is_deleted = FALSE AND order_status IN ('PENDING', 'IN_PROGRESS')
-                  AND destination_position_id IS NOT NULL
-                GROUP BY destination_position_id
+                SELECT w.destination_position_id, COUNT(*) AS pending
+                FROM ""{schema}"".sp_yard_work_order w
+                JOIN ""{schema}"".sp_yard_item i ON i.item_id = w.item_id
+                WHERE w.is_deleted = FALSE AND w.order_status IN ('PENDING', 'IN_PROGRESS')
+                  AND w.destination_position_id IS NOT NULL
+                  AND (i.position_id IS DISTINCT FROM w.destination_position_id)
+                GROUP BY w.destination_position_id
             ) o ON o.destination_position_id = p.position_id
+            LEFT JOIN LATERAL (
+                SELECT i.grade_code, i.size_profile_id,
+                       CASE WHEN jsonb_typeof(i.attributes->'length_mm') = 'number' THEN (i.attributes->>'length_mm')::numeric
+                            WHEN i.attributes->>'length_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'length_mm')::numeric END AS length_mm,
+                       CASE WHEN jsonb_typeof(i.attributes->'width_mm') = 'number' THEN (i.attributes->>'width_mm')::numeric
+                            WHEN i.attributes->>'width_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'width_mm')::numeric END AS width_mm,
+                       CASE WHEN jsonb_typeof(i.attributes->'thickness_mm') = 'number' THEN (i.attributes->>'thickness_mm')::numeric
+                            WHEN i.attributes->>'thickness_mm' ~ '^[0-9]+([.][0-9]+)?$' THEN (i.attributes->>'thickness_mm')::numeric END AS thickness_mm
+                FROM ""{schema}"".sp_yard_work_order w
+                JOIN ""{schema}"".sp_yard_item i ON i.item_id = w.item_id
+                WHERE w.is_deleted = FALSE AND w.order_status IN ('PENDING', 'IN_PROGRESS')
+                  AND w.destination_position_id = p.position_id
+                ORDER BY w.work_order_id DESC
+                LIMIT 1
+            ) q ON TRUE
             WHERE p.is_deleted = FALSE
               AND (@zone_purpose IS NULL OR z.zone_purpose = @zone_purpose)
+              AND (@yard_type_id IS NULL OR z.yard_type_id = @yard_type_id)
             ORDER BY (p.capacity_limit - COALESCE(s.occupied, 0) - COALESCE(o.pending, 0)) DESC,
                      p.row_index, p.col_index;";
     }

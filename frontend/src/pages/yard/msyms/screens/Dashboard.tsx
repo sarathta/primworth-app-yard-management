@@ -217,7 +217,7 @@ export const Dashboard: React.FC = () => {
                                         <circle cx="50" cy="50" r="40" fill="transparent" stroke="#111" strokeWidth="8" />
                                         <circle cx="50" cy="50" r="40" fill="transparent" stroke="#2E8B57" strokeWidth="8" strokeDasharray={`${ratio * 2.51} 251`} className="transition-all duration-1000 ease-out" />
                                     </svg>
-                                    <div className="absolute font-black tracking-wider text-[11px] text-white bg-[#111] px-1.5 py-0.5 rounded shadow-sm">{ratio}%</div>
+                                    <div className="absolute font-black tracking-wider text-[11px] text-white px-1.5 py-0.5 rounded shadow-sm">{ratio}%</div>
                                 </div>
                                 <div className="flex flex-col justify-center">
                                     <div className="text-sm font-black uppercase tracking-widest text-white mb-1 truncate">{zone.name}</div>

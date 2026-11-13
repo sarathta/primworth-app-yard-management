@@ -54,6 +54,21 @@ namespace Primworth_API.Queries.Yard
             WHERE is_deleted = FALSE AND is_active
             LIMIT 2;";
 
+        /// <summary>
+        /// Distinct materials accepted by STORAGE areas of one yard. Used when inbound names the
+        /// yard but not the material: a slab yard should not have to say SLAB.
+        /// </summary>
+        public const string GetActiveMaterialTypesForYard = @"
+            SELECT DISTINCT mt.material_type_id, mt.type_key, mt.singular, mt.plural, mt.id_label, mt.position_label,
+                   mt.attribute_defs::text AS attribute_defs, mt.rule_set_key, mt.is_active
+            FROM ""{schema}"".sp_yard_material_type mt
+            JOIN ""{schema}"".sp_yard_zone_material_type zm ON zm.material_type_id = mt.material_type_id
+            JOIN ""{schema}"".sp_yard_zone z ON z.zone_id = zm.zone_id
+            WHERE mt.is_deleted = FALSE AND mt.is_active
+              AND z.is_deleted = FALSE AND z.is_active
+              AND z.yard_type_id = @yard_type_id
+              AND z.zone_purpose = 'STORAGE';";
+
         public const string GetZones = @"
             SELECT z.zone_id, z.zone_name, z.zone_purpose, z.storage_style, z.is_active,
                    COALESCE(p.position_count, 0) AS position_count,

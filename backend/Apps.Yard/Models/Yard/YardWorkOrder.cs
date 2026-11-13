@@ -79,11 +79,18 @@ namespace Primworth_API.Models.Yard
         public int col_index { get; set; }
         public int capacity_limit { get; set; }
 
+        /// <summary>Stack height the rules use: the pit's capacity_limit from the dashboard editor.</summary>
+        public int rule_capacity { get; set; }
+
         /// <summary>Live items physically here plus open orders heading here.</summary>
         public int occupied { get; set; }
 
         public string? top_grade { get; set; }
         public string? distinct_grades { get; set; }
+        public long? top_size_profile_id { get; set; }
+        public decimal? top_length_mm { get; set; }
+        public decimal? top_width_mm { get; set; }
+        public decimal? top_thickness_mm { get; set; }
 
         /// <summary>Claimed earlier in the same planning pass. Keeps one plan self-consistent.</summary>
         public int reserved { get; set; }

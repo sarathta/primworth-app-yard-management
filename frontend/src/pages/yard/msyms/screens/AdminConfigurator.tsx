@@ -5,6 +5,7 @@ import { Trash2, Plus, Edit2, Check, X, ChevronDown, ChevronRight, Save, Shield,
 import { symsFetch, symsError } from '../symsApi';
 import { hasPermission } from '../../../../auth';
 import { useYardMaterial } from '../../components/MaterialGate';
+import { getMaterialTypes } from '../../../../services/yard';
 import { FORMATION, formationsFor, type StorageStyle } from '../../formations';
 
 // ─── Types ───────────────────────────────────────────────────────────────
@@ -102,21 +103,37 @@ const GradeMasterPanel: React.FC<{ token: string | null }> = ({ token }) => {
 
 // ─── Dimension Profile Panel ──────────────────────────────────────────────
 const DimensionPanel: React.FC<{ token: string | null }> = ({ token }) => {
+    const { material } = useYardMaterial();
+    const [materialTypeId, setMaterialTypeId] = useState(0);
     const [dims, setDims] = useState<any[]>([]);
     const [form, setForm] = useState({ name: '', length_mm: '', width_mm: '', thickness_mm: '', tolerance_pct: '0.5' });
     const [editId, setEditId] = useState<string | null>(null);
     const [showForm, setShowForm] = useState(false);
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        let cancelled = false;
+        getMaterialTypes().then(res => {
+            if (cancelled) return;
+            const match = res.success && res.data
+                ? res.data.find(m => m.type_key.toLowerCase() === material.type_key.toLowerCase())
+                : undefined;
+            setMaterialTypeId(match?.material_type_id ?? 0);
+        });
+        return () => { cancelled = true; };
+    }, [material.type_key]);
+
     const fetch_ = useCallback(async () => {
-        const r = await symsFetch('http://localhost:4000/api/masters/dimensions', { headers: { Authorization: `Bearer ${token}` } });
+        if (!materialTypeId) { setDims([]); return; }
+        const r = await symsFetch(`http://localhost:4000/api/masters/dimensions?material_type_id=${materialTypeId}`, { headers: { Authorization: `Bearer ${token}` } });
         if (r.ok) setDims(await r.json());
-    }, [token]);
+    }, [token, materialTypeId]);
     useEffect(() => { fetch_(); }, [fetch_]);
 
     const save = async () => {
         setError('');
-        const body = { name: form.name, length_mm: form.length_mm, width_mm: form.width_mm, thickness_mm: form.thickness_mm, tolerance_pct: form.tolerance_pct };
+        if (!materialTypeId) { setError('Open a yard with a material type, then add a dimension profile.'); return; }
+        const body = { name: form.name, material_type_id: materialTypeId, length_mm: form.length_mm, width_mm: form.width_mm, thickness_mm: form.thickness_mm, tolerance_pct: form.tolerance_pct };
         const method = editId ? 'PUT' : 'POST';
         const url = editId ? `http://localhost:4000/api/masters/dimensions/${editId}` : 'http://localhost:4000/api/masters/dimensions';
         const r = await symsFetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -131,7 +148,7 @@ const DimensionPanel: React.FC<{ token: string | null }> = ({ token }) => {
 
     return (
         <div>
-            <SectionHeader icon={<Ruler size={20} />} title="Dimension Profiles" sub="Define standard slab dimension profiles with physical tolerances for routing validation." />
+            <SectionHeader icon={<Ruler size={20} />} title="Dimension Profiles" sub={`Standard ${material.singular.toLowerCase()} sizes for this yard, with physical tolerances for routing.`} />
             <div className="overflow-x-auto mb-6">
                 <table className="w-full text-sm">
                     <thead>
@@ -193,7 +210,7 @@ const DimensionPanel: React.FC<{ token: string | null }> = ({ token }) => {
                                 <input type="range" min="0" max="5" step="0.1" value={parseFloat(form.tolerance_pct)} onChange={e => setForm({ ...form, tolerance_pct: e.target.value })} className="flex-1 accent-accent" />
                                 <span className="text-white font-mono text-sm w-16 text-center">± {form.tolerance_pct}%</span>
                             </div>
-                            <p className="text-[10px] text-secondary mt-1">Slabs within ±{form.tolerance_pct}% of these dimensions will match this profile during routing.</p>
+                            <p className="text-[10px] text-secondary mt-1">{material.plural} within ±{form.tolerance_pct}% of these dimensions will match this profile during routing.</p>
                         </div>
                         <div className="flex gap-3 pt-2">
                             <button onClick={save} className="flex items-center px-5 py-2 bg-accent text-background font-bold text-xs uppercase tracking-widest rounded hover:opacity-80">
@@ -619,8 +636,8 @@ export const AdminConfigurator: React.FC = () => {
     //   Integrations — the platform owns plant connections. Communication Interface and the
     //               Tag Hub are where a PLC, a LIMS or an ERP is wired up, with driver
     //               tests, confirmed writes and an audit trail behind them.
-    // Rules is the GoRules editor. Save writes the graph to data/rules.json. The yard does
-    // not evaluate that file; the built-in allocator still does the routing.
+    // Rules is the GoRules editor. Save writes the graph to sp_rules for the open yard.
+    // Inbound placement loads that yard's graph (stacking by grade, size, width and length).
     const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
         { id: 'zones' as Tab, label: 'Yard Topology', icon: <Layers size={14} /> },
         { id: 'master_data', label: 'Master Data', icon: <Database size={14} /> },

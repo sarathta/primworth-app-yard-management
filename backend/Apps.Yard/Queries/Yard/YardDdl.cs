@@ -253,8 +253,9 @@ namespace Primworth_API.Queries.Yard
                 CONSTRAINT fk_sp_yard_size_profile_material_type_id
                     FOREIGN KEY (material_type_id) REFERENCES ""{schema}"".sp_yard_material_type (material_type_id)
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_size_profile_profile_name
-                ON ""{schema}"".sp_yard_size_profile (LOWER(profile_name)) WHERE is_deleted = FALSE;";
+            DROP INDEX IF EXISTS ""{schema}"".uq_sp_yard_size_profile_profile_name;
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_yard_size_profile_material_name
+                ON ""{schema}"".sp_yard_size_profile (material_type_id, LOWER(profile_name)) WHERE is_deleted = FALSE;";
 
         public const string CreateReworkActivity = @"
             CREATE TABLE IF NOT EXISTS ""{schema}"".sp_yard_rework_activity (
@@ -358,6 +359,24 @@ namespace Primworth_API.Queries.Yard
                 END IF;
             END $$;";
 
+        /// <summary>One GoRules decision graph per yard (Coil Yard, Slab Yard, …).</summary>
+        public const string CreateRules = @"
+            CREATE TABLE IF NOT EXISTS ""{schema}"".sp_rules (
+                rule_id      bigint GENERATED ALWAYS AS IDENTITY,
+                yard_type_id bigint NOT NULL,
+                graph        jsonb NOT NULL DEFAULT '{""nodes"":[],""edges"":[]}'::jsonb,
+                is_deleted   boolean NOT NULL DEFAULT FALSE,
+                created_by   bigint,
+                created_on   timestamp NOT NULL DEFAULT NOW(),
+                updated_by   bigint,
+                updated_on   timestamp NOT NULL DEFAULT NOW(),
+                CONSTRAINT pk_sp_rules PRIMARY KEY (rule_id),
+                CONSTRAINT fk_sp_rules_yard_type_id
+                    FOREIGN KEY (yard_type_id) REFERENCES ""{schema}"".sp_yard_type (yard_type_id)
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_sp_rules_yard_type_id
+                ON ""{schema}"".sp_rules (yard_type_id);";
+
         /// <summary>Feature flags and tuning. Natural key: config is addressed by name everywhere.</summary>
         public const string CreateSystemConfig = @"
             CREATE TABLE IF NOT EXISTS ""{schema}"".sp_yard_system_config (
@@ -397,6 +416,43 @@ namespace Primworth_API.Queries.Yard
             SELECT @config_key, @config_value, @user_id, NOW(), @user_id, NOW()
             WHERE NOT EXISTS (
                 SELECT 1 FROM ""{schema}"".sp_yard_system_config WHERE config_key = @config_key
+            );";
+
+        /// <summary>
+        /// Graph for a named yard. Inserts when missing; fills an empty graph; never overwrites
+        /// a decision table the configurator has already saved.
+        /// </summary>
+        public const string SeedYardRules = @"
+            INSERT INTO ""{schema}"".sp_rules (yard_type_id, graph, created_by, created_on, updated_by, updated_on)
+            SELECT yt.yard_type_id, @graph::jsonb, @user_id, NOW(), @user_id, NOW()
+            FROM ""{schema}"".sp_yard_type yt
+            WHERE LOWER(yt.yard_type_name) = LOWER(@yard_type_name) AND yt.is_deleted = FALSE
+            ON CONFLICT (yard_type_id)
+            DO UPDATE SET graph = EXCLUDED.graph, is_deleted = FALSE,
+                          updated_by = EXCLUDED.updated_by, updated_on = NOW()
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(""{schema}"".sp_rules.graph->'nodes') n
+                WHERE n->>'type' = 'decisionTableNode'
+                  AND jsonb_array_length(COALESCE(n->'content'->'rules', '[]'::jsonb)) > 0
+            );";
+
+        /// <summary>
+        /// Slab stacking graph. Inserts when missing; replaces a graph that does not yet have
+        /// the Grade Classification table (one row per grade or family).
+        /// </summary>
+        public const string SeedSlabYardRules = @"
+            INSERT INTO ""{schema}"".sp_rules (yard_type_id, graph, created_by, created_on, updated_by, updated_on)
+            SELECT yt.yard_type_id, @graph::jsonb, @user_id, NOW(), @user_id, NOW()
+            FROM ""{schema}"".sp_yard_type yt
+            WHERE LOWER(yt.yard_type_name) = LOWER(@yard_type_name) AND yt.is_deleted = FALSE
+            ON CONFLICT (yard_type_id)
+            DO UPDATE SET graph = EXCLUDED.graph, is_deleted = FALSE,
+                          updated_by = EXCLUDED.updated_by, updated_on = NOW()
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements(""{schema}"".sp_rules.graph->'nodes') n
+                WHERE n->>'name' = 'Grade Classification'
             );";
 
         /// <summary>Used by the schema context to tell "provisioned here" from "not enabled here".</summary>

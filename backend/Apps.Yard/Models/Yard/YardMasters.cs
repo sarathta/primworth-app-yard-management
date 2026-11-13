@@ -16,6 +16,7 @@ namespace Primworth_API.Models.Yard
     public class YardSizeProfileInput
     {
         public string profile_name { get; set; } = "";
+        public long material_type_id { get; set; }
         public decimal length_mm { get; set; }
         public decimal width_mm { get; set; }
         public decimal thickness_mm { get; set; }
@@ -23,7 +24,11 @@ namespace Primworth_API.Models.Yard
         public bool is_active { get; set; } = true;
 
         public string? Validate()
-            => string.IsNullOrWhiteSpace(profile_name) || profile_name.Length > 100 ? "A profile name is required (max 100 characters)." : null;
+        {
+            if (material_type_id <= 0) return "A material type is required.";
+            if (string.IsNullOrWhiteSpace(profile_name) || profile_name.Length > 100) return "A profile name is required (max 100 characters).";
+            return null;
+        }
     }
 
     // Maps "{facility_schema}".sp_yard_rework_activity.

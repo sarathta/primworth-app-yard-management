@@ -1,5 +1,6 @@
 using System.Data;
 using Dapper;
+using Primworth_API.IRepository;
 using Primworth_API.Models.Yard;
 using Primworth_API.Queries.Yard;
 
@@ -28,6 +29,9 @@ namespace Primworth_API.Repository.Yard
             public required IDbTransaction Transaction { get; init; }
             public required string Schema { get; init; }
             public long UserId { get; init; }
+            public long? YardTypeId { get; init; }
+            public IYardRuleEngine? Rules { get; init; }
+            public string? RuleGraphJson { get; init; }
             public IReadOnlyDictionary<string, string> Config { get; init; } = new Dictionary<string, string>();
         }
 
@@ -54,7 +58,7 @@ namespace Primworth_API.Repository.Yard
             }
 
             var candidates = await CandidatesAsync(ctx, item.material_type_id, purpose);
-            var target = Choose(candidates, item, IsOn(ctx.Config, "rule_grade_separation"), out var rejection);
+            var target = Choose(candidates, item, IsOn(ctx.Config, "rule_grade_separation"), ctx.Rules, ctx.RuleGraphJson, out var rejection);
 
             if (target == null)
             {
@@ -91,30 +95,83 @@ namespace Primworth_API.Repository.Yard
         }
 
         /// <summary>
-        /// Enough room, grade-compatible when separation is on, and among those the emptiest.
-        /// Candidates arrive sorted by free space, so the first survivor wins.
+        /// Slab graphs receive every pit and return one position: the fullest compatible stack,
+        /// then the roomiest, then the lowest row and column. Older graphs are still judged
+        /// one pit at a time, and the first allowed pit in free-space order wins.
         /// </summary>
-        private static YardCandidatePosition? Choose(List<YardCandidatePosition> candidates, YardItem item, bool strictGrade, out string? rejection)
+        private static YardCandidatePosition? Choose(List<YardCandidatePosition> candidates, YardItem item, bool strictGrade, IYardRuleEngine? rules, string? graphJson, out string? rejection)
         {
             rejection = null;
             if (candidates.Count == 0)
             {
-                rejection = "No active area of the right purpose accepts this material. Add one under Configuration, or let an area accept it.";
+                rejection = "No active area of the right purpose accepts this material on this yard. Add one under Configuration, or let an area accept it.";
                 return null;
             }
 
-            var withRoom = candidates.Where(c => c.HasRoom).ToList();
-            if (withRoom.Count == 0) { rejection = "Every position that accepts this material is full."; return null; }
-            if (!strictGrade) return withRoom[0];
+            foreach (var candidate in candidates)
+                candidate.rule_capacity = candidate.capacity_limit;
 
-            var grade = GradeOf(item);
-            var compatible = withRoom.Where(c => AcceptsGrade(c, grade)).ToList();
-            if (compatible.Count == 0)
+            if (rules != null && rules.UsesLocationGraph(graphJson))
             {
-                rejection = $"Grade separation is on and every position with room already holds a different grade (incoming '{grade}').";
+                var pool = candidates;
+                if (strictGrade)
+                {
+                    var grade = GradeOf(item);
+                    pool = candidates.Where(c => AcceptsGrade(c, grade)).ToList();
+                    if (pool.Count == 0)
+                    {
+                        rejection = $"Grade separation is on and every position with room already holds a different grade (incoming '{grade}').";
+                        return null;
+                    }
+                }
+
+                var choice = rules.SelectLocation(item, pool, graphJson);
+                if (choice.PositionId is long id)
+                {
+                    var picked = pool.FirstOrDefault(c => c.position_id == id);
+                    if (picked != null) return picked;
+                }
+                rejection = string.IsNullOrWhiteSpace(choice.Reason)
+                    ? "No free pit satisfies the stacking rules (grade, size, capacity, longer/wider below)."
+                    : choice.Reason;
                 return null;
             }
-            return compatible[0];
+
+            var allowed = new List<YardCandidatePosition>();
+            string? stackingReason = null;
+            foreach (var candidate in candidates)
+            {
+                var decision = rules != null
+                    ? rules.EvaluatePlacement(item, candidate, graphJson)
+                    : YardRuleEngine.Builtin(YardRuleEngine.Facts(item, candidate));
+                if (decision.Allowed) allowed.Add(candidate);
+                else stackingReason ??= decision.Reason;
+            }
+
+            if (allowed.Count == 0)
+            {
+                rejection = stackingReason ?? "No free pit satisfies the stacking rules (grade, size, capacity, longer/wider below).";
+                return null;
+            }
+
+            if (strictGrade)
+            {
+                var grade = GradeOf(item);
+                var compatible = allowed.Where(c => AcceptsGrade(c, grade)).ToList();
+                if (compatible.Count == 0)
+                {
+                    rejection = $"Grade separation is on and every position with room already holds a different grade (incoming '{grade}').";
+                    return null;
+                }
+                allowed = compatible;
+            }
+
+            return allowed
+                .OrderByDescending(c => c.occupied)
+                .ThenByDescending(c => c.Free)
+                .ThenBy(c => c.row_index)
+                .ThenBy(c => c.col_index)
+                .First();
         }
 
         private static bool AcceptsGrade(YardCandidatePosition c, string grade)
@@ -183,7 +240,7 @@ namespace Primworth_API.Repository.Yard
 
         public static async Task<List<YardCandidatePosition>> CandidatesAsync(Context ctx, long materialTypeId, string? zonePurpose)
             => (await ctx.Connection.QueryAsync<YardCandidatePosition>(new CommandDefinition(Sql(YardItemQueries.GetCandidatePositions, ctx.Schema),
-                new { material_type_id = materialTypeId, zone_purpose = zonePurpose }, ctx.Transaction))).ToList();
+                new { material_type_id = materialTypeId, zone_purpose = zonePurpose, yard_type_id = ctx.YardTypeId is > 0 ? ctx.YardTypeId : null }, ctx.Transaction))).ToList();
 
         private static Task<long> RaiseOrderAsync(Context ctx, string orderType, long itemId,
             long? sourceZoneId, long? sourcePositionId, long? destinationZoneId, long? destinationPositionId, long? reworkActivityId)
